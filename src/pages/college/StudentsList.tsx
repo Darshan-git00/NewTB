@@ -1,3 +1,4 @@
+import CollegeLayout from "@/components/layouts/CollegeLayout";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,18 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Search, Star } from "lucide-react";
 import StudentFilters from "@/components/StudentFilters";
-
-// Mock data
-const mockStudents = [
-  { id: 1, name: "Marcus Rashford", course: "B.Tech", branch: "Computer Science", year: "3rd", status: "available" },
-  { id: 2, name: "Ryan Williams", course: "B.Tech", branch: "Information Technology", year: "2nd", status: "available" },
-  { id: 3, name: "Kylan Mbappé", course: "M.Tech", branch: "Computer Science", year: "2nd", status: "placed" },
-  { id: 4, name: "Jude Bellingham", course: "B.Tech", branch: "Electronics", year: "4th", status: "placed" },
-  { id: 5, name: "Dean Huijsen", course: "BCA", branch: "Computer Science", year: "4th", status: "available" },
-  { id: 6, name: "Antoine Semenyo", course: "MCA", branch: "Computer Science", year: "3rd", status: "placed" },
-  { id: 7, name: "Ben Sesko", course: "B.Tech", branch: "Mechanical", year: "3rd", status: "on-hold" },
-  { id: 8, name: "Dan James", course: "B.Tech", branch: "Computer Science", year: "3rd", status: "available" },
-];
+import { mockStudents } from "@/data/mockData";
 
 const StudentsList = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -62,8 +52,8 @@ const StudentsList = () => {
   };
 
   return (
-    <div className="min-h-screen bg-muted/30 p-6">
-      <div className="max-w-7xl mx-auto">
+    <CollegeLayout>
+      <div className="container mx-auto px-6 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Students List</h1>
           <p className="text-muted-foreground">Manage and filter student data</p>
@@ -126,8 +116,9 @@ const StudentsList = () => {
           )}
         </div>
       </div>
-    </div>
+    </CollegeLayout>
   );
 };
 
 export default StudentsList;
+
