@@ -1,70 +1,391 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import StudentLayout from "@/components/layouts/StudentLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { NotificationCenter } from "@/components/NotificationCenter";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
+import { Bell, Settings, Mail, Shield, User } from "lucide-react";
+
+// LocalStorage keys
+const STORAGE_KEYS = {
+  EMAIL_NOTIFICATIONS: "student_settings_email_notifications",
+  PUSH_NOTIFICATIONS: "student_settings_push_notifications",
+  THEME: "student_settings_theme",
+  DARK_MODE: "student_settings_dark_mode", // Legacy support
+} as const;
 
 const StudentSettings = () => {
+  const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
+
+  // State for all settings
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [pushNotifications, setPushNotifications] = useState(true);
+  const [selectedTheme, setSelectedTheme] = useState<string>("system");
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Password change dialog state
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+
+  // Logout dialog state
+  const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
+
+  // Get user email from localStorage (mock)
+  const userEmail = "student@example.com";
+  const userName = "Current Student";
+
+  // Load settings from localStorage on mount
+  useEffect(() => {
+    const loadSettings = () => {
+      const savedEmailNotifications = localStorage.getItem(STORAGE_KEYS.EMAIL_NOTIFICATIONS);
+      const savedPushNotifications = localStorage.getItem(STORAGE_KEYS.PUSH_NOTIFICATIONS);
+      const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME);
+      const savedDarkMode = localStorage.getItem(STORAGE_KEYS.DARK_MODE);
+
+      if (savedEmailNotifications !== null) {
+        setEmailNotifications(savedEmailNotifications === "true");
+      }
+      if (savedPushNotifications !== null) {
+        setPushNotifications(savedPushNotifications === "true");
+      }
+      if (savedTheme) {
+        setSelectedTheme(savedTheme);
+        setTheme(savedTheme);
+        // Sync dark mode toggle with theme
+        setIsDarkMode(savedTheme === "dark");
+      } else if (savedDarkMode !== null) {
+        // Legacy support for old dark mode toggle
+        const darkMode = savedDarkMode === "true";
+        setIsDarkMode(darkMode);
+        setTheme(darkMode ? "dark" : "light");
+        setSelectedTheme(darkMode ? "dark" : "light");
+      }
+    };
+
+    loadSettings();
+  }, [setTheme]);
+
+  // Sync selectedTheme with theme from useTheme
+  useEffect(() => {
+    if (theme) {
+      setSelectedTheme(theme);
+      setIsDarkMode(theme === "dark");
+    }
+  }, [theme]);
+
+  // Save email notifications
+  const handleEmailNotificationsChange = (checked: boolean) => {
+    setEmailNotifications(checked);
+    localStorage.setItem(STORAGE_KEYS.EMAIL_NOTIFICATIONS, checked.toString());
+    toast.success(checked ? "Email notifications enabled" : "Email notifications disabled");
+  };
+
+  // Save push notifications
+  const handlePushNotificationsChange = (checked: boolean) => {
+    setPushNotifications(checked);
+    localStorage.setItem(STORAGE_KEYS.PUSH_NOTIFICATIONS, checked.toString());
+    toast.success(checked ? "Push notifications enabled" : "Push notifications disabled");
+  };
+
+  // Handle dark mode toggle (legacy support - maps to theme)
+  const handleDarkModeChange = (checked: boolean) => {
+    setIsDarkMode(checked);
+    const newTheme = checked ? "dark" : "light";
+    setSelectedTheme(newTheme);
+    setTheme(newTheme);
+    localStorage.setItem(STORAGE_KEYS.THEME, newTheme);
+    localStorage.setItem(STORAGE_KEYS.DARK_MODE, checked.toString()); // Legacy
+    toast.success(checked ? "Dark mode enabled" : "Dark mode disabled");
+  };
+
+  // Handle theme change
+  const handleThemeChange = (newTheme: string) => {
+    setSelectedTheme(newTheme);
+    setTheme(newTheme);
+    localStorage.setItem(STORAGE_KEYS.THEME, newTheme);
+    setIsDarkMode(newTheme === "dark");
+    toast.success(`Theme changed to ${newTheme === "system" ? "system default" : newTheme}`);
+  };
+
+  // Handle password change
+  const handlePasswordChange = () => {
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast.error("New passwords do not match");
+      return;
+    }
+
+    if (passwordData.newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters long");
+      return;
+    }
+
+    // Simulate password change
+    toast.success("Password changed successfully");
+    setPasswordData({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
+    setIsPasswordDialogOpen(false);
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    toast.success("Logged out successfully");
+    setIsLogoutDialogOpen(false);
+    // In a real app, you would clear auth tokens and redirect to login
+    // For now, just show a toast and optionally redirect
+    setTimeout(() => {
+      navigate("/");
+    }, 1000);
+  };
+
   return (
     <StudentLayout>
-      <div className="container mx-auto px-6 py-8 max-w-4xl">
+      <div className="container mx-auto px-8 py-12 max-w-6xl">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Settings</h1>
-          <p className="text-muted-foreground">Manage your account preferences</p>
+          <h1 className="text-4xl md:text-5xl font-extrabold mb-3">Settings</h1>
+          <p className="text-lg text-muted-foreground font-medium">Manage your account preferences</p>
         </div>
 
-        <div className="space-y-6">
-          <Card className="p-6">
-            <h3 className="font-semibold mb-4">Preferences</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Dark Mode</p>
-                  <p className="text-sm text-muted-foreground">Toggle dark mode theme</p>
-                </div>
-                <Switch />
-              </div>
-            </div>
-          </Card>
+        <Tabs defaultValue="general" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="general" className="flex items-center gap-2">
+              <Settings className="w-4 h-4" />
+              General
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="flex items-center gap-2">
+              <Bell className="w-4 h-4" />
+              Notifications
+            </TabsTrigger>
+            <TabsTrigger value="security" className="flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Security
+            </TabsTrigger>
+            <TabsTrigger value="account" className="flex items-center gap-2">
+              <User className="w-4 h-4" />
+              Account
+            </TabsTrigger>
+          </TabsList>
 
-          <Card className="p-6">
-            <h3 className="font-semibold mb-4">Notifications</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Push Notifications</p>
-                  <p className="text-sm text-muted-foreground">Receive notifications about new drives</p>
+          <TabsContent value="general" className="space-y-6">
+            {/* Preferences Section */}
+            <Card className="p-8 rounded-2xl shadow-xl bg-card/80 dark:bg-card backdrop-blur">
+              <h3 className="font-bold text-xl mb-6">Preferences</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30">
+                  <div>
+                    <p className="font-semibold">Dark Mode</p>
+                    <p className="text-sm text-muted-foreground">Toggle dark mode theme</p>
+                  </div>
+                  <Switch 
+                    checked={isDarkMode}
+                    onCheckedChange={handleDarkModeChange}
+                  />
                 </div>
-                <Switch defaultChecked />
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Email Notifications</p>
-                  <p className="text-sm text-muted-foreground">Receive email updates</p>
+                <Separator />
+                <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30">
+                  <div>
+                    <p className="font-semibold">Theme</p>
+                    <p className="text-sm text-muted-foreground">Choose your preferred theme</p>
+                  </div>
+                  <Select value={selectedTheme} onValueChange={handleThemeChange}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Select theme" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="light">Light</SelectItem>
+                      <SelectItem value="dark">Dark</SelectItem>
+                      <SelectItem value="system">System</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Switch defaultChecked />
               </div>
-            </div>
-          </Card>
+            </Card>
 
-          <Card className="p-6">
-            <h3 className="font-semibold mb-4">Privacy & Security</h3>
-            <div className="space-y-4">
-              <Button variant="outline">Change Password</Button>
-            </div>
-          </Card>
+            {/* Basic Notifications */}
+            <Card className="p-8 rounded-2xl shadow-xl bg-card/80 dark:bg-card backdrop-blur">
+              <h3 className="font-bold text-xl mb-6">Quick Notification Settings</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30">
+                  <div>
+                    <p className="font-semibold">Push Notifications</p>
+                    <p className="text-sm text-muted-foreground">Receive notifications about new drives</p>
+                  </div>
+                  <Switch 
+                    checked={pushNotifications}
+                    onCheckedChange={handlePushNotificationsChange}
+                  />
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30">
+                  <div>
+                    <p className="font-semibold">Email Notifications</p>
+                    <p className="text-sm text-muted-foreground">Receive email updates</p>
+                  </div>
+                  <Switch 
+                    checked={emailNotifications}
+                    onCheckedChange={handleEmailNotificationsChange}
+                  />
+                </div>
+              </div>
+            </Card>
+          </TabsContent>
 
-          <Card className="p-6">
-            <h3 className="font-semibold mb-4">Account</h3>
-            <div>
-              <Button variant="outline" onClick={() => toast.info("Logging out...")}>
-                Logout
-              </Button>
-            </div>
-          </Card>
-        </div>
+          <TabsContent value="notifications">
+            <NotificationCenter userEmail={userEmail} userName={userName} />
+          </TabsContent>
+
+          <TabsContent value="security" className="space-y-6">
+            {/* Privacy & Security Section */}
+            <Card className="p-8 rounded-2xl shadow-xl bg-card/80 dark:bg-card backdrop-blur">
+              <h3 className="font-bold text-xl mb-6">Privacy & Security</h3>
+              <div className="space-y-4">
+                <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="rounded-xl">
+                      Change Password
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Change Password</DialogTitle>
+                      <DialogDescription>
+                        Enter your current password and choose a new one.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="currentPassword">Current Password</Label>
+                        <Input
+                          id="currentPassword"
+                          type="password"
+                          value={passwordData.currentPassword}
+                          onChange={(e) =>
+                            setPasswordData({ ...passwordData, currentPassword: e.target.value })
+                          }
+                          placeholder="Enter current password"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="newPassword">New Password</Label>
+                        <Input
+                          id="newPassword"
+                          type="password"
+                          value={passwordData.newPassword}
+                          onChange={(e) =>
+                            setPasswordData({ ...passwordData, newPassword: e.target.value })
+                          }
+                          placeholder="Enter new password"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                        <Input
+                          id="confirmPassword"
+                          type="password"
+                          value={passwordData.confirmPassword}
+                          onChange={(e) =>
+                            setPasswordData({ ...passwordData, confirmPassword: e.target.value })
+                          }
+                          placeholder="Confirm new password"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsPasswordDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button onClick={handlePasswordChange}>Change Password</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="account" className="space-y-6">
+            {/* Account Section */}
+            <Card className="p-8 rounded-2xl shadow-xl bg-card/80 dark:bg-card backdrop-blur">
+              <h3 className="font-bold text-xl mb-6">Account Management</h3>
+              <div className="space-y-4">
+                <div>
+                  <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" className="rounded-xl">
+                        Logout
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure you want to logout?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          You will be logged out of your account and redirected to the home page.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleLogout}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Logout
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </StudentLayout>
   );

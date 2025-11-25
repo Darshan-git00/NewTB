@@ -1,4 +1,6 @@
-# Welcome to your Lovable project
+# TalentBridge
+
+A modern platform connecting talent with opportunities through AI-powered interviews and smart matching algorithms.
 
 ## Project info
 
@@ -61,6 +63,62 @@ This project is built with:
 - Tailwind CSS
 
 ## How can I deploy this project?
+
+### Deploying to Vercel
+
+You can deploy TalentBridge to Vercel directly from your GitHub repository.
+
+#### Prerequisites
+- GitHub repository with the TalentBridge code
+- Vercel account (free tier is sufficient)
+
+#### Required Environment Variables
+Set these environment variables in your Vercel project settings:
+
+```bash
+VITE_API_URL=""           # API base URL (leave empty for mock data mode)
+VITE_AUTH_SECRET=""       # Authentication secret for JWT tokens
+VITE_ENV="production"     # Environment (development/staging/production)
+```
+
+#### Deployment Steps
+
+1. **Connect to Vercel**
+   - Go to [vercel.com](https://vercel.com) and sign in
+   - Click "New Project"
+   - Import your GitHub repository
+
+2. **Configure Build Settings**
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+   - **Install Command**: `npm install`
+   - **Node.js Version**: `18.x` or higher
+
+3. **Set Environment Variables**
+   - Go to project settings → Environment Variables
+   - Add the required variables listed above
+   - Make sure to include `VITE_` prefix for all variables
+
+4. **Deploy**
+   - Click "Deploy"
+   - Vercel will automatically build and deploy your application
+   - You'll get a live URL once deployment is complete
+
+#### Local Testing
+```sh
+# Build for production
+npm run build
+
+# Preview production build locally
+npm run preview
+```
+
+#### Notes
+- The application will work with mock data even if `VITE_API_URL` is empty
+- No serverless configuration required - Vite React apps work out of the box
+- All routing is handled client-side with React Router
+
+### Lovable Deployment
 
 Simply open [Lovable](https://lovable.dev/projects/9f33c347-7ecb-4584-9802-c12711f14153) and click on Share -> Publish.
 

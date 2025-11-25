@@ -1,4 +1,6 @@
+import { useLocation, useNavigate } from "react-router-dom";
 import CollegeLayout from "@/components/layouts/CollegeLayout";
+import RecruiterLayout from "@/components/layouts/RecruiterLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,35 +8,83 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useState } from "react";
+import { addRecruiterDrive } from "@/lib/recruiterStorage";
 
 const CreateDrive = () => {
+  const location = useLocation();
   const navigate = useNavigate();
+  const isRecruiter = location.pathname.includes("/recruiter");
+  
   const [formData, setFormData] = useState({
     jobTitle: "",
-    type: "job",
+    type: "Job",
     description: "",
     requiredSkills: "",
     company: "",
     location: "",
     salary: "",
     openings: "",
+    experienceLevel: "",
+    workMode: "Hybrid",
+    applicationDeadline: "",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Position created successfully!");
-    setTimeout(() => {
-      navigate("/college/drives");
-    }, 1000);
+    
+    if (isRecruiter) {
+      // Save to recruiter storage
+      const skills = formData.requiredSkills.split(",").map(s => s.trim()).filter(s => s);
+      const requirements = [
+        `Bachelor's degree in Computer Science or related field`,
+        `Strong knowledge of ${skills[0] || "relevant technologies"}`,
+        `Experience with ${formData.experienceLevel || "0-2 years"}`,
+        `Good problem-solving and analytical skills`,
+      ];
+      
+      addRecruiterDrive({
+        company: formData.company,
+        logo: `https://api.dicebear.com/7.x/shapes/svg?seed=${formData.company.toLowerCase().replace(/\s+/g, "")}`,
+        position: formData.jobTitle,
+        type: formData.type as "Job" | "Internship",
+        salary: formData.salary,
+        location: formData.location,
+        skills: skills,
+        openings: parseInt(formData.openings) || 1,
+        interviews: 0,
+        status: "active",
+        description: formData.description,
+        requirements: requirements,
+        experienceLevel: formData.experienceLevel || "0-2 years",
+        applicationDeadline: formData.applicationDeadline || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        workMode: formData.workMode,
+        applicants: 0,
+        shortlisted: 0,
+      });
+      
+      toast.success("Drive created successfully!");
+      setTimeout(() => {
+        navigate("/recruiter/drives");
+      }, 1000);
+    } else {
+      // College side (keep existing behavior for now)
+      toast.success("Position created successfully!");
+      setTimeout(() => {
+        navigate("/college/drives");
+      }, 1000);
+    }
   };
 
+  const Layout = isRecruiter ? RecruiterLayout : CollegeLayout;
+  const backPath = isRecruiter ? "/recruiter/drives" : "/college/drives";
+
   return (
-    <CollegeLayout>
+    <Layout>
       <div className="container mx-auto px-6 py-8 max-w-4xl">
-        <Link to="/college/drives" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
+        <Link to={backPath} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
           <ArrowLeft className="w-4 h-4" />
           Back to Drives
         </Link>
@@ -65,8 +115,8 @@ const CreateDrive = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-background z-50">
-                    <SelectItem value="job">Job</SelectItem>
-                    <SelectItem value="internship">Internship</SelectItem>
+                    <SelectItem value="Job">Job</SelectItem>
+                    <SelectItem value="Internship">Internship</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -131,29 +181,67 @@ const CreateDrive = () => {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="salary">Salary Range</Label>
-              <Input
-                id="salary"
-                placeholder="e.g., $500 - $1000"
-                value={formData.salary}
-                onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
-                required
-              />
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="experienceLevel">Experience Level</Label>
+                <Input
+                  id="experienceLevel"
+                  placeholder="e.g., 0-2 years, Fresher/Intern"
+                  value={formData.experienceLevel}
+                  onChange={(e) => setFormData({ ...formData, experienceLevel: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="workMode">Work Mode</Label>
+                <Select value={formData.workMode} onValueChange={(value) => setFormData({ ...formData, workMode: value })}>
+                  <SelectTrigger id="workMode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    <SelectItem value="Remote">Remote</SelectItem>
+                    <SelectItem value="On-site">On-site</SelectItem>
+                    <SelectItem value="Hybrid">Hybrid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="salary">Salary Range</Label>
+                <Input
+                  id="salary"
+                  placeholder="e.g., $500 - $1000"
+                  value={formData.salary}
+                  onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="applicationDeadline">Application Deadline</Label>
+                <Input
+                  id="applicationDeadline"
+                  type="date"
+                  value={formData.applicationDeadline}
+                  onChange={(e) => setFormData({ ...formData, applicationDeadline: e.target.value })}
+                />
+              </div>
             </div>
 
             <div className="flex gap-4 pt-4">
               <Button type="submit" variant="glowPrimary" className="flex-1">
                 Save Position
               </Button>
-              <Button type="button" variant="outline" onClick={() => navigate("/college/drives")} className="flex-1">
+              <Button type="button" variant="outline" onClick={() => navigate(backPath)} className="flex-1">
                 Cancel
               </Button>
             </div>
           </form>
         </Card>
       </div>
-    </CollegeLayout>
+    </Layout>
   );
 };
 
