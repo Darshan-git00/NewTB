@@ -153,7 +153,7 @@ router.put('/:id', async (req, res) => {
           select: { id: true, name: true, email: true }
         },
         drive: {
-          select: { id: true, title: true, company: true }
+          select: { id: true, position: true }
         }
       }
     });
@@ -228,10 +228,10 @@ router.get('/students/:studentId', async (req, res) => {
         where: { studentId: req.params.studentId },
         skip: (Number(page) - 1) * Number(limit),
         take: Number(limit),
-        orderBy: { createdAt: 'desc' },
+        orderBy: { appliedDate: 'desc' },
         include: {
           drive: {
-            select: { id: true, title: true, company: true, type: true, location: true }
+            select: { id: true, position: true, type: true, location: true }
           }
         }
       }),

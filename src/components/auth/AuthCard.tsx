@@ -221,32 +221,32 @@ const AuthCard = ({ type, title, subtitle, isLogin, onToggleMode }: AuthCardProp
   const renderLoginFields = () => (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
+        <Label htmlFor="email" className="text-base font-medium">Email Address</Label>
         <div className="relative">
-          <Mail className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+          <Mail className="absolute left-4 top-4 w-5 h-5 text-muted-foreground" />
           <Input
             id="email"
             type="email"
             placeholder="Enter your email"
             value={formData.email}
             onChange={(e) => handleInputChange("email", e.target.value)}
-            className="pl-10 h-11 rounded-xl border-border/60 focus:border-primary"
+            className="pl-12 h-14 rounded-xl border-border/60 focus:border-primary text-lg"
             required
           />
         </div>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+        <Label htmlFor="password" className="text-base font-medium">Password</Label>
         <div className="relative">
-          <Lock className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+          <Lock className="absolute left-4 top-4 w-5 h-5 text-muted-foreground" />
           <Input
             id="password"
             type={showPassword ? "text" : "password"}
             placeholder="Enter your password"
             value={formData.password}
             onChange={(e) => handleInputChange("password", e.target.value)}
-            className="pl-10 pr-10 h-11 rounded-xl border-border/60 focus:border-primary"
+            className="pl-12 pr-12 h-14 rounded-xl border-border/60 focus:border-primary text-lg"
             autoComplete="current-password"
             required
           />
@@ -254,10 +254,10 @@ const AuthCard = ({ type, title, subtitle, isLogin, onToggleMode }: AuthCardProp
             type="button"
             variant="ghost"
             size="sm"
-            className="absolute right-2 top-2 h-7 w-7 p-0"
+            className="absolute right-3 top-3 h-8 w-8 p-0"
             onClick={() => setShowPassword(!showPassword)}
           >
-            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </Button>
         </div>
       </div>
@@ -883,56 +883,52 @@ const AuthCard = ({ type, title, subtitle, isLogin, onToggleMode }: AuthCardProp
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-muted/30 via-background to-muted/30 p-6">
-      <div className="w-full max-w-6xl grid lg:grid-cols-2 gap-8 items-center">
-        {/* Left Side - Branding */}
+    <div className="min-h-screen flex items-stretch justify-center bg-background p-0">
+      <div className="w-full max-w-none grid lg:grid-cols-2 gap-0 items-stretch min-h-screen overflow-hidden">
+        {/* Left Side - Colored Branding Panel */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.6 }}
-          className="hidden lg:block"
+          className={`hidden lg:flex relative bg-gradient-to-br ${theme.primary} p-12 text-white items-center justify-center`}
         >
           <div className="text-center space-y-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-2xl">
-              {getIcon()}
+            {/* TalentBridge Logo */}
+            <div className="flex justify-center mb-8">
+              <span className="text-3xl md:text-4xl font-bold text-white">
+                <span style={{ color: 'rgba(255, 255, 255, 0.9)' }}>Talent</span>
+                <span style={{ color: 'rgba(255, 255, 255, 0.7)' }}>Bridge</span>
+              </span>
             </div>
             
-            <div className="space-y-4">
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
-                {title}
-              </h1>
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                {subtitle}
-              </p>
-            </div>
+            {/* Glass Card */}
+            <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 shadow-2xl">
+              <div className="space-y-6">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm shadow-xl">
+                  {getIcon()}
+                </div>
+                
+                <div className="space-y-4">
+                  <h1 className="text-3xl font-bold text-white">
+                    {title}
+                  </h1>
+                  <p className="text-base text-white/80 leading-relaxed">
+                    {subtitle}
+                  </p>
+                </div>
 
-            <div className="space-y-6">
-              <div className="flex items-center justify-center space-x-8">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-primary">10K+</div>
-                  <div className="text-sm text-muted-foreground">Active Users</div>
+                <div className="flex items-center justify-center space-x-3">
+                  <Badge className="px-3 py-1.5 rounded-full bg-white/20 text-white text-sm border border-white/30">
+                    <Sparkles className="w-3 h-3 mr-1.5" />
+                    AI Powered
+                  </Badge>
+                  <Badge className="px-3 py-1.5 rounded-full bg-white/20 text-white text-sm border border-white/30">
+                    Secure
+                  </Badge>
+                  <Badge className="px-3 py-1.5 rounded-full bg-white/20 text-white text-sm border border-white/30">
+                    Fast
+                  </Badge>
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-primary">500+</div>
-                  <div className="text-sm text-muted-foreground">Companies</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-primary">95%</div>
-                  <div className="text-sm text-muted-foreground">Success Rate</div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-center space-x-4">
-                <Badge className={`px-4 py-2 rounded-full bg-gradient-to-r ${theme.primary} text-white border-0`}>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  AI Powered
-                </Badge>
-                <Badge variant="outline" className="px-4 py-2 rounded-full">
-                  Secure
-                </Badge>
-                <Badge variant="outline" className="px-4 py-2 rounded-full">
-                  Fast
-                </Badge>
               </div>
             </div>
           </div>
@@ -943,8 +939,9 @@ const AuthCard = ({ type, title, subtitle, isLogin, onToggleMode }: AuthCardProp
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.6, delay: 0.1 }}
+          className="relative bg-white flex items-center justify-center p-8 lg:p-12"
         >
-          <Card className="p-8 shadow-2xl border-0 bg-background/80 backdrop-blur-xl">
+          <Card className="p-0 shadow-none border-0 bg-transparent">
             {/* Mobile Header */}
             <div className="lg:hidden text-center mb-8">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-primary/80 shadow-xl mb-4">
@@ -955,17 +952,17 @@ const AuthCard = ({ type, title, subtitle, isLogin, onToggleMode }: AuthCardProp
             </div>
 
             {/* Back Button */}
-            <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
-              <ArrowLeft className="w-4 h-4" />
+            <Link to="/" className="inline-flex items-center gap-3 text-muted-foreground hover:text-foreground mb-8 transition-colors text-lg">
+              <ArrowLeft className="w-5 h-5" />
               Back to home
             </Link>
 
             {/* Form Header */}
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold mb-2">
+            <div className="mb-10">
+              <h2 className="text-4xl font-bold mb-4 text-gray-900">
                 {isLogin ? "Welcome Back" : "Create Account"}
               </h2>
-              <p className="text-muted-foreground">
+              <p className="text-lg text-muted-foreground">
                 {isLogin ? "Enter your credentials to access your account" : "Fill in your information to get started"}
               </p>
             </div>
@@ -975,61 +972,61 @@ const AuthCard = ({ type, title, subtitle, isLogin, onToggleMode }: AuthCardProp
 
               <Button
                 type="submit"
-                className={`w-full h-12 rounded-xl font-semibold bg-gradient-to-r ${theme.primary} text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]`}
+                className={`w-full h-16 rounded-xl font-bold text-lg bg-gradient-to-r ${theme.primary} text-white border-0 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02]`}
                 disabled={authLoading || (!isLogin && type === "student" && !formData.agreeToTerms)}
               >
                 {authLoading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     Processing...
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     {isLogin ? "Sign In" : "Create Account"}
-                    <ArrowLeft className="w-4 h-4 rotate-180" />
+                    <ArrowLeft className="w-5 h-5 rotate-180" />
                   </div>
                 )}
               </Button>
             </form>
 
-            <Separator className="my-6" />
+            <Separator className="my-8" />
 
-            <div className="text-center">
-              <p className="text-muted-foreground">
+            <div className="text-center space-y-4">
+              <p className="text-lg text-muted-foreground">
                 {isLogin ? "Don't have an account?" : "Already have an account?"}
               </p>
               <Button
                 variant="link"
                 onClick={onToggleMode}
-                className={`font-semibold ${theme.text} hover:opacity-80`}
+                className={`font-bold text-lg ${theme.text} hover:opacity-80`}
               >
                 {isLogin ? "Create Account" : "Sign In"}
               </Button>
             </div>
 
             {/* Role Switcher */}
-            <div className="mt-6 pt-6 border-t border-border/60">
-              <p className="text-center text-sm text-muted-foreground mb-3">
+            <div className="mt-8 pt-8 border-t border-border/60">
+              <p className="text-center text-base text-muted-foreground mb-4">
                 Not a {type}?
               </p>
-              <div className="flex justify-center gap-2">
+              <div className="flex justify-center gap-3">
                 {type !== "student" && (
                   <Link to="/auth/student">
-                    <Button variant="outline" size="sm" className="rounded-lg">
+                    <Button variant="outline" size="lg" className="rounded-lg px-6 py-3 text-base">
                       Student
                     </Button>
                   </Link>
                 )}
                 {type !== "college" && (
                   <Link to="/auth/college">
-                    <Button variant="outline" size="sm" className="rounded-lg">
+                    <Button variant="outline" size="lg" className="rounded-lg px-6 py-3 text-base">
                       College
                     </Button>
                   </Link>
                 )}
                 {type !== "recruiter" && (
                   <Link to="/auth/recruiter">
-                    <Button variant="outline" size="sm" className="rounded-lg">
+                    <Button variant="outline" size="lg" className="rounded-lg px-6 py-3 text-base">
                       Recruiter
                     </Button>
                   </Link>
