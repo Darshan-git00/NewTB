@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import StudentLayout from "@/components/layouts/StudentLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,12 +52,18 @@ const STORAGE_KEYS = {
 const StudentSettings = () => {
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
+  const { user, logout } = useAuth();
 
   // State for all settings
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(true);
   const [selectedTheme, setSelectedTheme] = useState<string>("system");
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
+
+  // Get user data from authenticated context
+  const userEmail = user?.email || "";
+  const userName = user?.name || "Student";
 
   // Password change dialog state
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
@@ -65,13 +72,6 @@ const StudentSettings = () => {
     newPassword: "",
     confirmPassword: "",
   });
-
-  // Logout dialog state
-  const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
-
-  // Get user email from localStorage (mock)
-  const userEmail = "student@example.com";
-  const userName = "Current Student";
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -175,13 +175,10 @@ const StudentSettings = () => {
 
   // Handle logout
   const handleLogout = () => {
+    logout();
     toast.success("Logged out successfully");
     setIsLogoutDialogOpen(false);
-    // In a real app, you would clear auth tokens and redirect to login
-    // For now, just show a toast and optionally redirect
-    setTimeout(() => {
-      navigate("/");
-    }, 1000);
+    navigate("/");
   };
 
   return (

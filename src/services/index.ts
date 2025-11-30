@@ -29,7 +29,6 @@ export type {
 // Re-export API utilities
 export {
   apiClient,
-  createMockApiCall,
   ApiError,
   API_BASE_URL
 } from './api';

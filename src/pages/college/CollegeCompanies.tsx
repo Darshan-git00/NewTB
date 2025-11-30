@@ -14,15 +14,21 @@ import { Search, Plus, Building2, Briefcase, Users, Mail, MapPin, Globe, Calenda
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { mockCompanies, mockDrives } from "@/data/mockData";
-import { mockRecruiters } from "@/data/mockData";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { collegesService } from "@/services/collegesService";
 
 const CollegeCompanies = () => {
+  const { user } = useAuth();
   const [selectedCompany, setSelectedCompany] = useState<any>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isAddCompanyOpen, setIsAddCompanyOpen] = useState(false);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [recruiters, setRecruiters] = useState<any[]>([]);
+  const [drives, setDrives] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     location: "",
@@ -34,13 +40,35 @@ const CollegeCompanies = () => {
     status: "active",
   });
 
+  // Fetch real data
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user?.id) return;
+      
+      try {
+        setLoading(true);
+        // For now, we'll set empty arrays since these endpoints may not exist yet
+        // TODO: Implement proper API endpoints for companies and recruiters
+        setCompanies([]);
+        setRecruiters([]);
+        setDrives([]);
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user?.id]);
+
   const handleViewDetails = (company: any) => {
     setSelectedCompany(company);
     setIsDialogOpen(true);
   };
 
   const getCompanyDrives = (companyName: string) => {
-    return mockDrives.filter(drive => drive.company === companyName);
+    return drives.filter(drive => drive.company === companyName);
   };
 
   const handleAddCompany = (e: React.FormEvent) => {
@@ -83,7 +111,17 @@ const CollegeCompanies = () => {
         <div className="mb-12">
           <h2 className="text-2xl font-bold mb-6">Active Recruiters</h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {mockRecruiters.map((recruiter) => (
+            {loading ? (
+              <div className="col-span-full text-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                <p className="text-muted-foreground text-sm">Loading recruiters...</p>
+              </div>
+            ) : recruiters.length === 0 ? (
+              <div className="col-span-full text-center py-8">
+                <p className="text-muted-foreground text-sm">No active recruiters</p>
+              </div>
+            ) : (
+              recruiters.map((recruiter) => (
               <Card key={recruiter.id} className="p-6 rounded-2xl hover:shadow-xl transition-all card-hover">
                 <div className="flex items-start gap-4 mb-4">
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
@@ -117,7 +155,8 @@ const CollegeCompanies = () => {
                   </div>
                 </div>
               </Card>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -132,7 +171,17 @@ const CollegeCompanies = () => {
           </Card>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mockCompanies.map((company) => (
+          {loading ? (
+            <div className="col-span-full text-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+              <p className="text-muted-foreground text-sm">Loading companies...</p>
+            </div>
+          ) : companies.length === 0 ? (
+            <div className="col-span-full text-center py-8">
+              <p className="text-muted-foreground text-sm">No companies found</p>
+            </div>
+          ) : (
+            companies.map((company) => (
             <Card key={company.id} className="p-6 rounded-2xl hover:shadow-xl transition-all card-hover">
               <div className="flex items-start gap-4">
                 <img src={company.logo} alt={company.name} className="w-16 h-16 rounded-xl" />
@@ -164,7 +213,8 @@ const CollegeCompanies = () => {
                 </div>
               </div>
             </Card>
-          ))}
+            ))
+            )}
           </div>
         </div>
       </div>

@@ -2,10 +2,21 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Building2, Briefcase, Users, Eye } from "lucide-react";
-import { mockRecruiters } from "@/data/mockData";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 
 export const RecruiterInsights = () => {
+  const { user } = useAuth();
+  const [recruiters, setRecruiters] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // TODO: Implement proper API call to fetch recruiters
+    // For now, setting empty array since this endpoint may not exist
+    setRecruiters([]);
+    setLoading(false);
+  }, [user?.id]);
   return (
     <Card className="p-6 rounded-2xl bg-gradient-to-br from-card/90 dark:from-card via-secondary/5 to-primary/5 backdrop-blur shadow-xl">
       <div className="flex items-center justify-between mb-6">
@@ -26,7 +37,17 @@ export const RecruiterInsights = () => {
       </div>
 
       <div className="space-y-4">
-        {mockRecruiters.map((recruiter) => (
+        {loading ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+            <p className="text-muted-foreground text-sm">Loading recruiters...</p>
+          </div>
+        ) : recruiters.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground text-sm">No active recruiters</p>
+          </div>
+        ) : (
+          recruiters.map((recruiter) => (
           <div
             key={recruiter.id}
             className="p-4 rounded-xl bg-card/60 dark:bg-card/80 backdrop-blur border border-border/50 hover:shadow-lg transition-all"
@@ -75,7 +96,8 @@ export const RecruiterInsights = () => {
               </div>
             </div>
           </div>
-        ))}
+          ))
+        )}
       </div>
     </Card>
   );

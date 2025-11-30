@@ -4,10 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, Building, Briefcase, TrendingUp, Plus, ArrowRight, Award, Copy, Eye, EyeOff } from "lucide-react";
 import { Link } from "react-router-dom";
-import { mockDrives } from "@/data/mockData";
 import { motion } from 'framer-motion';
 import { useState, useEffect } from "react";
-import { getColleges } from "@/lib/authStorage";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useCollegeStudents, useCollegeDrives, useCollegeApplications, useCollegeDashboardStats } from "@/hooks";
@@ -19,16 +17,15 @@ const CollegeDashboard = () => {
 
   useEffect(() => {
     if (user?.id) {
-      const colleges = getColleges();
-      const college = colleges.find(c => c.id === user.id);
-      setCollegeData(college);
+      // College data is now available directly from the authenticated user
+      setCollegeData(user);
     }
   }, [user]);
 
   const handleCopyCollegeId = async () => {
-    if (collegeData?.collegeId) {
+    if (user?.id) {
       try {
-        await navigator.clipboard.writeText(collegeData.collegeId);
+        await navigator.clipboard.writeText(user.id);
         toast.success("College ID copied to clipboard!");
       } catch (error) {
         toast.error("Failed to copy College ID");
@@ -43,7 +40,8 @@ const CollegeDashboard = () => {
   const { data: statsData, isLoading: statsLoading } = useCollegeDashboardStats(user?.collegeId || '');
 
   const applications = applicationsData || [];
-  const students = studentsData?.data || [];
+  const students = studentsData?.students || [];
+  const drives = drivesData?.data || [];
 
   // Calculate real metrics from applications data
   const applicationMetrics = {
@@ -240,7 +238,17 @@ const CollegeDashboard = () => {
             </Link>
           </div>
           <div className="space-y-5">
-            {mockDrives.slice(0, 3).map((drive, idx) => (
+            {drivesLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                <p className="text-muted-foreground text-sm">Loading drives...</p>
+              </div>
+            ) : drives.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground text-sm">No active drives</p>
+              </div>
+            ) : (
+              drives.slice(0, 3).map((drive, idx) => (
               <motion.div
                 key={drive.id}
                 className="card-hover"
@@ -269,7 +277,8 @@ const CollegeDashboard = () => {
                   </div>
                 </div>
               </motion.div>
-            ))}
+              ))
+            )}
           </div>
         </Card>
       </div>

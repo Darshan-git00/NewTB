@@ -1,7 +1,5 @@
 // Recruiter data storage utilities using localStorage
 
-import { mockDrives } from "@/data/mockData";
-
 export interface RecruiterDrive {
   id: number;
   company: string;
@@ -63,11 +61,8 @@ const STORAGE_KEYS = {
 export const getRecruiterDrives = (): RecruiterDrive[] => {
   const stored = localStorage.getItem(STORAGE_KEYS.DRIVES);
   if (!stored) {
-    // Initialize with mock data
-    const initialDrives: RecruiterDrive[] = mockDrives.map((drive) => ({
-      ...drive,
-      createdBy: "recruiter",
-    }));
+    // Initialize with empty array since mock data is removed
+    const initialDrives: RecruiterDrive[] = [];
     saveRecruiterDrives(initialDrives);
     return initialDrives;
   }

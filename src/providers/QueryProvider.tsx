@@ -8,6 +8,7 @@ const queryClient = new QueryClient({
     queries: {
       // Global query configuration
       staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes garbage collection
       retry: (failureCount, error: any) => {
         // Don't retry on 4xx errors
         if (error?.status >= 400 && error?.status < 500) {
@@ -19,10 +20,15 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false, // Don't refetch on window focus
       refetchOnReconnect: true, // Refetch on reconnect
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+      // Enable background refetching for stale queries
+      refetchInterval: false, // Don't auto refetch by default
+      // Network mode for better offline experience
+      networkMode: 'online',
     },
     mutations: {
       // Global mutation configuration
       retry: 1, // Retry mutations once
+      networkMode: 'online',
     },
   },
 });

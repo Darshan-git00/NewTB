@@ -50,22 +50,13 @@ export const InterviewScheduler = ({
       breakDuration
     );
     
-    // Mock some slots as already booked
-    const mockBookedSlots = slots.slice(0, 5).map(slot => ({
+    // Since mock data is removed, generate all slots as available
+    const availableSlotsList = slots.map(slot => ({
       ...slot,
-      status: 'booked' as const,
-      currentCandidates: 1
+      interviewer: 'John Smith',
+      interviewerEmail: 'john.smith@company.com',
+      location: Math.random() > 0.5 ? 'Virtual - Google Meet' : 'Office - Room 101'
     }));
-    
-    const availableSlotsList = [
-      ...mockBookedSlots,
-      ...slots.slice(5).map(slot => ({
-        ...slot,
-        interviewer: 'John Smith',
-        interviewerEmail: 'john.smith@company.com',
-        location: Math.random() > 0.5 ? 'Virtual - Google Meet' : 'Office - Room 101'
-      }))
-    ];
     
     setAvailableSlots(availableSlotsList);
   }, []);
@@ -187,7 +178,7 @@ export const InterviewScheduler = ({
 
   // Generate calendar days for the next 14 days
   const generateCalendarDays = () => {
-    const days = [];
+    const days: Date[] = [];
     const startDate = new Date();
     
     for (let i = 0; i < 14; i++) {

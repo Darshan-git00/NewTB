@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { collegesService } from "@/services/collegesService";
+import { College } from "@/services/types";
 import BreadcrumbNav from "@/components/BreadcrumbNav";
 
 interface CollegeLayoutProps {
@@ -23,7 +25,40 @@ interface CollegeLayoutProps {
 
 const CollegeLayout = ({ children }: CollegeLayoutProps) => {
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const [collegeData, setCollegeData] = useState<College | null>(null);
+
+  // Fetch college data to get the college name for avatar
+  useEffect(() => {
+    const fetchCollegeData = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const response = await collegesService.getProfile(user.id);
+        // Handle both wrapped and direct response formats
+        if (response && (response.data || (response as any).id)) {
+          const college = response.data || response;
+          setCollegeData(college as any); // Type assertion since API returns extra fields
+        }
+      } catch (err) {
+        console.error('Failed to fetch college data for layout:', err);
+      }
+    };
+
+    fetchCollegeData();
+  }, [user?.id]);
+
+  // Generate initials from college name
+  const getCollegeInitials = (name: string) => {
+    if (!name) return 'RC'; // Default fallback
+    const words = name.trim().split(' ');
+    if (words.length >= 2) {
+      return words[0][0].toUpperCase() + words[1][0].toUpperCase();
+    } else if (words.length === 1 && words[0].length >= 2) {
+      return words[0].substring(0, 2).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
 
   const navItems = [
     { path: "/college/dashboard", label: "Dashboard", icon: Building2 },
@@ -83,7 +118,9 @@ const CollegeLayout = ({ children }: CollegeLayoutProps) => {
               </Button>
               <Link to="/college/profile">
                 <Avatar className="cursor-pointer ring-2 ring-primary/30 hover:ring-primary/70 transition-all duration-200">
-                  <AvatarFallback className="bg-gradient-to-br from-primary via-secondary to-muted text-white text-lg font-medium">RC</AvatarFallback>
+                  <AvatarFallback className="bg-gradient-to-br from-primary via-secondary to-muted text-white text-lg font-medium">
+                    {getCollegeInitials(collegeData?.name || user?.name || 'RC')}
+                  </AvatarFallback>
                 </Avatar>
               </Link>
             </div>

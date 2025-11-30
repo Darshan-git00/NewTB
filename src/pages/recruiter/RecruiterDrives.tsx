@@ -34,18 +34,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, MapPin, Users, Edit, Trash2, Eye, Search, Calendar, Clock, Video, MapPin as MapPinIcon } from "lucide-react";
+import { Plus, MapPin, Users, Edit, Trash2, Eye, Search, Calendar, Clock, Video, MapPin as MapPinIcon, Brain, Target, Award, Star, CheckCircle, XCircle, Filter, TrendingUp, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { getRecruiterDrives, deleteRecruiterDrive, updateRecruiterDrive, RecruiterDrive, getApplicants } from "@/lib/recruiterStorage";
-import { useDriveApplications, useUpdateApplicationStatus, useScheduleInterview } from "@/hooks";
+import { useDriveApplications, useUpdateApplicationStatus, useScheduleInterview, useRecruiterDrives, useUpdateRecruiterApplicationStatus, useStudentProfile } from "@/hooks";
 import { StatusChip } from "@/components/ui/StatusChip";
 import { InterviewDetailsCard } from "@/components/ui/InterviewDetailsCard";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { motion } from 'framer-motion';
-import { Application, InterviewDetails } from "@/services/types";
+import { Application, InterviewDetails, Student } from "@/services/types";
+import { format } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
+import { recruitersService } from "@/services";
 
 const RecruiterDrives = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const recruiterId = user?.id || '';
   const [drives, setDrives] = useState<RecruiterDrive[]>([]);
   const [filteredDrives, setFilteredDrives] = useState<RecruiterDrive[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -63,10 +70,20 @@ const RecruiterDrives = () => {
     mode: 'online',
     link: ''
   });
+  
+  // Enhanced applicant management states
+  const [applicantSearchQuery, setApplicantSearchQuery] = useState("");
+  const [applicantStatusFilter, setApplicantStatusFilter] = useState("all");
+  const [selectedApplicants, setSelectedApplicants] = useState<string[]>([]);
+  const [showBulkApplicantActions, setShowBulkApplicantActions] = useState(false);
+  const [driveApplications, setDriveApplications] = useState<Application[]>([]);
+  const [driveStudents, setDriveStudents] = useState<{ [key: string]: Student }>({});
 
   // React Query hooks for recruiter actions
   const updateApplicationStatusMutation = useUpdateApplicationStatus();
   const scheduleInterviewMutation = useScheduleInterview();
+  const { mutate: updateRecruiterApplicationStatus } = useUpdateRecruiterApplicationStatus();
+  const { data: drivesData } = useRecruiterDrives(recruiterId, { page: 1, limit: 50 });
 
   useEffect(() => {
     loadDrives();
@@ -147,13 +164,107 @@ const RecruiterDrives = () => {
     loadDrives();
   };
 
-  const handleViewApplicants = (drive: RecruiterDrive) => {
+  const handleViewApplicants = async (drive: RecruiterDrive) => {
     setSelectedDrive(drive);
     setIsViewApplicantsDialogOpen(true);
+    
+    // Load real applications for this drive
+    try {
+      const response = await recruitersService.getDriveApplications(drive.id.toString());
+      const applications = response.data?.data || response.data || [];
+      setDriveApplications(applications);
+      
+      // Load student profiles for each application
+      const students: { [key: string]: Student } = {};
+      for (const app of applications) {
+        if (app.studentId && !students[app.studentId]) {
+          try {
+            // Import studentService dynamically to avoid circular imports
+            const { studentService } = await import("@/services");
+            const studentResponse = await studentService.getProfile(app.studentId);
+            students[app.studentId] = studentResponse.data || studentResponse;
+          } catch (error) {
+            console.error(`Failed to load student ${app.studentId}:`, error);
+          }
+        }
+      }
+      setDriveStudents(students);
+    } catch (error) {
+      console.error('Failed to load drive applications:', error);
+      toast.error('Failed to load applications');
+      setDriveApplications([]);
+      setDriveStudents({});
+    }
   };
 
   const getApplicantsForDrive = (driveId: number) => {
     return getApplicants().filter((app) => app.driveId === driveId);
+  };
+
+  // Helper functions for enhanced applicant management
+  const getFilteredApplicants = () => {
+    let filtered = driveApplications.filter(app => {
+      const student = driveStudents[app.studentId];
+      const matchesSearch = !applicantSearchQuery || 
+        app.studentId?.toLowerCase().includes(applicantSearchQuery.toLowerCase()) ||
+        student?.name?.toLowerCase().includes(applicantSearchQuery.toLowerCase()) ||
+        student?.email?.toLowerCase().includes(applicantSearchQuery.toLowerCase());
+      
+      const matchesStatus = applicantStatusFilter === "all" || app.status === applicantStatusFilter;
+      
+      return matchesSearch && matchesStatus;
+    });
+    
+    return filtered.sort((a, b) => new Date(b.appliedAt).getTime() - new Date(a.appliedAt).getTime());
+  };
+
+  const handleSelectApplicant = (applicationId: string) => {
+    setSelectedApplicants(prev => {
+      const newSelection = prev.includes(applicationId) 
+        ? prev.filter(id => id !== applicationId)
+        : [...prev, applicationId];
+      setShowBulkApplicantActions(newSelection.length > 0);
+      return newSelection;
+    });
+  };
+
+  const handleSelectAllApplicants = () => {
+    const filtered = getFilteredApplicants();
+    if (selectedApplicants.length === filtered.length) {
+      setSelectedApplicants([]);
+      setShowBulkApplicantActions(false);
+    } else {
+      setSelectedApplicants(filtered.map(app => app.id));
+      setShowBulkApplicantActions(true);
+    }
+  };
+
+  const handleBulkApplicantStatusUpdate = (newStatus: string) => {
+    const promises = selectedApplicants.map(applicationId => 
+      new Promise<void>((resolve, reject) => {
+        updateRecruiterApplicationStatus(
+          { applicationId, status: newStatus },
+          {
+            onSuccess: () => resolve(),
+            onError: () => reject(new Error(`Failed to update ${applicationId}`))
+          }
+        );
+      })
+    );
+
+    Promise.all(promises)
+      .then(() => {
+        toast.success(`${selectedApplicants.length} applications updated to ${newStatus}`);
+        setSelectedApplicants([]);
+        setShowBulkApplicantActions(false);
+        // Reload applications for the drive
+        if (selectedDrive) {
+          handleViewApplicants(selectedDrive);
+        }
+      })
+      .catch(() => {
+        toast.error('Some applications failed to update');
+      });
   };
 
   // Recruiter action handlers
@@ -200,9 +311,6 @@ const RecruiterDrives = () => {
       }
     );
   };
-
-  // Get applications for the selected drive using React Query
-  const { data: driveApplications = [] } = useDriveApplications(selectedDrive?.id.toString() || '');
 
   return (
     <RecruiterLayout>
@@ -513,91 +621,285 @@ const RecruiterDrives = () => {
           </DialogContent>
         </Dialog>
 
-        {/* View Applicants Dialog */}
+        {/* Enhanced View Applicants Dialog */}
         <Dialog open={isViewApplicantsDialogOpen} onOpenChange={setIsViewApplicantsDialogOpen}>
-          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
                 Applications for {selectedDrive?.position} at {selectedDrive?.company}
               </DialogTitle>
               <DialogDescription>
                 View and manage applications for this drive ({driveApplications.length} applications)
               </DialogDescription>
             </DialogHeader>
+            
             <div className="space-y-4 py-4">
-              {driveApplications.length > 0 ? (
-                driveApplications.map((application) => (
-                  <Card key={application.id} className="p-4">
+              {/* Search and Filters */}
+              <Card className="p-4 rounded-xl">
+                <div className="flex flex-col lg:flex-row gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by student ID, name, or email..."
+                      value={applicantSearchQuery}
+                      onChange={(e) => setApplicantSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Select value={applicantStatusFilter} onValueChange={setApplicantStatusFilter}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="applied">Applied</SelectItem>
+                      <SelectItem value="under_review">Under Review</SelectItem>
+                      <SelectItem value="shortlisted">Shortlisted</SelectItem>
+                      <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
+                      <SelectItem value="selected">Selected</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                      <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </Card>
+
+              {/* Bulk Actions Bar */}
+              {showBulkApplicantActions && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-4"
+                >
+                  <Card className="p-4 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200">
                     <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h4 className="font-bold">{application.studentId}</h4>
-                          <StatusChip status={application.status} />
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                          <span className="text-white text-sm font-bold">{selectedApplicants.length}</span>
                         </div>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Applied: {new Date(application.appliedAt).toLocaleDateString()}
-                        </p>
-                        {application.interviewDetails && (
-                          <InterviewDetailsCard interviewDetails={application.interviewDetails} className="mb-2" />
-                        )}
+                        <span className="font-medium text-blue-900">
+                          {selectedApplicants.length} candidate{selectedApplicants.length !== 1 ? 's' : ''} selected
+                        </span>
                       </div>
-                      <div className="flex gap-2 flex-wrap">
+                      
+                      <div className="flex items-center gap-2">
                         <Button
                           size="sm"
-                          variant="outline"
-                          onClick={() => handleUpdateApplicationStatus(application.id, 'shortlisted')}
-                          disabled={updateApplicationStatusMutation.isPending}
+                          className="bg-success hover:bg-success/90 text-white"
+                          onClick={() => handleBulkApplicantStatusUpdate('shortlisted')}
                         >
-                          Shortlist
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Shortlist All
                         </Button>
                         <Button
                           size="sm"
-                          variant="outline"
-                          onClick={() => handleUpdateApplicationStatus(application.id, 'on_hold')}
-                          disabled={updateApplicationStatusMutation.isPending}
+                          className="bg-primary hover:bg-primary/90 text-white"
+                          onClick={() => handleBulkApplicantStatusUpdate('interview_scheduled')}
                         >
-                          On Hold
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleUpdateApplicationStatus(application.id, 'rejected')}
-                          disabled={updateApplicationStatusMutation.isPending}
-                        >
-                          Reject
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleUpdateApplicationStatus(application.id, 'accepted')}
-                          disabled={updateApplicationStatusMutation.isPending}
-                        >
-                          Accept
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={() => handleScheduleInterview(application)}
-                          disabled={scheduleInterviewMutation.isPending}
-                        >
+                          <Calendar className="w-4 h-4 mr-2" />
                           Schedule Interview
                         </Button>
                         <Button
                           size="sm"
-                          variant="outline"
-                          onClick={() => navigate(`/recruiter/students?applicantId=${application.studentId}`)}
+                          variant="destructive"
+                          onClick={() => handleBulkApplicantStatusUpdate('rejected')}
                         >
-                          View Profile
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Reject All
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedApplicants([]);
+                            setShowBulkApplicantActions(false);
+                          }}
+                        >
+                          Cancel
                         </Button>
                       </div>
                     </div>
                   </Card>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground">No applications yet for this drive.</p>
-                </div>
+                </motion.div>
               )}
+
+              {/* Applicants List */}
+              <div className="space-y-3">
+                {/* Select All Header */}
+                {getFilteredApplicants().length > 0 && (
+                  <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={selectedApplicants.length === getFilteredApplicants().length}
+                        onCheckedChange={handleSelectAllApplicants}
+                        className="w-5 h-5"
+                      />
+                      <span className="text-sm font-medium">
+                        {selectedApplicants.length === getFilteredApplicants().length ? 'Deselect All' : 'Select All'} ({getFilteredApplicants().length} candidates)
+                      </span>
+                    </div>
+                    
+                    <div className="text-sm text-muted-foreground">
+                      {selectedApplicants.length > 0 && (
+                        <span className="text-primary font-medium">
+                          {selectedApplicants.length} selected
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {getFilteredApplicants().length > 0 ? (
+                  getFilteredApplicants().map((application, idx) => {
+                    const student = driveStudents[application.studentId];
+                    return (
+                      <motion.div
+                        key={application.id}
+                        initial={{ opacity: 0, y: 18, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ delay: idx * 0.05, duration: 0.35, ease: 'easeOut' }}
+                      >
+                        <Card className="p-6 rounded-xl hover:shadow-lg transition-all">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4 flex-1">
+                              {/* Selection Checkbox */}
+                              <Checkbox
+                                checked={selectedApplicants.includes(application.id)}
+                                onCheckedChange={() => handleSelectApplicant(application.id)}
+                                className="w-5 h-5"
+                              />
+                              
+                              {/* Student Avatar */}
+                              <Avatar className="w-14 h-14">
+                                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${application.studentId}`} />
+                                <AvatarFallback className="bg-gradient-to-br from-primary via-secondary to-muted text-white text-lg font-medium">
+                                  {student?.name?.substring(0, 2).toUpperCase() || application.studentId.substring(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+
+                              {/* Student Information */}
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h3 className="font-bold text-lg">{student?.name || application.studentId}</h3>
+                                  <Badge className={
+                                    application.status === 'shortlisted' ? 'bg-success' :
+                                    application.status === 'interview_scheduled' ? 'bg-primary' :
+                                    application.status === 'selected' ? 'bg-warning' :
+                                    application.status === 'rejected' ? 'bg-destructive' :
+                                    'bg-muted'
+                                  }>
+                                    {application.status.replace('_', ' ').toUpperCase()}
+                                  </Badge>
+                                  {Math.random() > 0.5 && (
+                                    <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0">
+                                      <Brain className="w-3 h-3 mr-1" />
+                                      AI {Math.floor(Math.random() * 40 + 60)}%
+                                    </Badge>
+                                  )}
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                                  <div>
+                                    <span className="text-muted-foreground">Student ID: </span>
+                                    <span className="font-medium">{application.studentId}</span>
+                                  </div>
+                                  {student?.email && (
+                                    <div>
+                                      <span className="text-muted-foreground">Email: </span>
+                                      <span className="font-medium">{student.email}</span>
+                                    </div>
+                                  )}
+                                  {student?.branch && (
+                                    <div>
+                                      <span className="text-muted-foreground">Branch: </span>
+                                      <span className="font-medium">{student.branch}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <div className="flex items-center gap-4 mt-2">
+                                  <span className="text-xs text-muted-foreground">
+                                    Applied: {format(new Date(application.appliedAt), "MMM dd, yyyy")}
+                                  </span>
+                                  {student?.cgpa && (
+                                    <span className="text-xs text-primary font-medium">
+                                      <Star className="w-3 h-3 inline mr-1" />
+                                      CGPA: {student.cgpa}
+                                    </span>
+                                  )}
+                                  {Math.random() > 0.6 && (
+                                    <span className="text-xs text-success font-medium">
+                                      <Target className="w-3 h-3 inline mr-1" />
+                                      {Math.floor(Math.random() * 30 + 70)}% Match
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-2">
+                              <Select value={application.status} onValueChange={(newStatus) => {
+                                updateRecruiterApplicationStatus(
+                                  { applicationId: application.id, status: newStatus },
+                                  {
+                                    onSuccess: () => {
+                                      toast.success(`Status updated to ${newStatus}`);
+                                      // Reload applications
+                                      if (selectedDrive) {
+                                        handleViewApplicants(selectedDrive);
+                                      }
+                                    },
+                                    onError: () => {
+                                      toast.error('Failed to update status');
+                                    }
+                                  }
+                                );
+                              }}>
+                                <SelectTrigger className="w-36">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="applied">Applied</SelectItem>
+                                  <SelectItem value="under_review">Under Review</SelectItem>
+                                  <SelectItem value="shortlisted">Shortlisted</SelectItem>
+                                  <SelectItem value="interview_scheduled">Interview</SelectItem>
+                                  <SelectItem value="selected">Selected</SelectItem>
+                                  <SelectItem value="rejected">Rejected</SelectItem>
+                                  <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  // Open detailed profile view
+                                  setSelectedApplication(application);
+                                  // Could open a detailed profile dialog here
+                                }}
+                              >
+                                <Eye className="w-4 h-4 mr-2" />
+                                Profile
+                              </Button>
+                            </div>
+                          </div>
+                        </Card>
+                      </motion.div>
+                    );
+                  })
+                ) : (
+                  <Card className="p-12 text-center rounded-xl">
+                    <Users className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground text-lg">
+                      {applicantSearchQuery || applicantStatusFilter !== "all"
+                        ? "No applicants found matching your criteria."
+                        : "No applications yet for this drive."}
+                    </p>
+                  </Card>
+                )}
+            </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsViewApplicantsDialogOpen(false)}>

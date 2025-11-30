@@ -44,6 +44,7 @@ export {
   useApplyToDrive,
   useStudentApplications,
   useDriveApplications,
+  useCollegeApplications,
   // Recruiter Actions System Hooks
   useUpdateApplicationStatus,
   useScheduleInterview,

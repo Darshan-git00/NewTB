@@ -6,7 +6,6 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
-import { validateCollegeId as checkCollegeId } from "@/lib/authStorage";
 import { 
   Eye, 
   EyeOff, 
@@ -146,10 +145,10 @@ const AuthCard = ({ type, title, subtitle, isLogin, onToggleMode }: AuthCardProp
     if (!formData.collegeId) return;
     
     try {
-      const college = checkCollegeId(formData.collegeId);
-      setCollegeIdValid(!!college);
+      // TODO: Replace with actual API call to validate college ID
+      // For now, we'll consider any non-empty college ID as valid
+      setCollegeIdValid(!!formData.collegeId.trim());
     } catch (error) {
-      console.error('Error validating college ID:', error);
       setCollegeIdValid(false);
     }
   };

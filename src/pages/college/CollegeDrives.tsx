@@ -12,17 +12,51 @@ import {
 } from "@/components/ui/dialog";
 import { Search, Plus, MapPin, Briefcase, Calendar, Users, Clock, Building2, DollarSign, CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
-import { mockDrives } from "@/data/mockData";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { collegesService } from "@/services/collegesService";
+import { Drive } from "@/services/types";
 
 const CollegeDrives = () => {
-  const [selectedDrive, setSelectedDrive] = useState<any>(null);
+  const { user } = useAuth();
+  const [selectedDrive, setSelectedDrive] = useState<Drive | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [drives, setDrives] = useState<Drive[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleViewDetails = (drive: any) => {
+  const handleViewDetails = (drive: Drive) => {
     setSelectedDrive(drive);
     setIsDialogOpen(true);
   };
+
+  // Fetch real drives data
+  useEffect(() => {
+    const fetchDrives = async () => {
+      if (!user?.id) return;
+      
+      try {
+        setLoading(true);
+        const response = await collegesService.getDrives(user.id, {
+          page: 1,
+          limit: 50
+        });
+        
+        // The service returns { drives, pagination } directly
+        if (response && response.drives) {
+          setDrives(response.drives);
+        } else {
+          setError('Failed to fetch drives');
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch drives');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDrives();
+  }, [user?.id]);
 
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
@@ -54,7 +88,22 @@ const CollegeDrives = () => {
         </Card>
 
         <div className="grid gap-6">
-          {mockDrives.map((drive) => (
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading drives...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <p className="text-red-500 mb-4">{error}</p>
+              <Button onClick={() => window.location.reload()}>Retry</Button>
+            </div>
+          ) : drives.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">No drives available.</p>
+            </div>
+          ) : (
+            drives.map((drive) => (
             <Card key={drive.id} className="p-6 rounded-2xl hover:shadow-xl transition-all card-hover">
               <div className="flex items-start justify-between">
                 <div className="flex gap-4">
@@ -62,7 +111,7 @@ const CollegeDrives = () => {
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="text-xl font-semibold">{drive.position}</h3>
-                      <Badge variant={drive.type === "Job" ? "default" : "secondary"}>
+                      <Badge variant={drive.type === "on-campus" ? "default" : "secondary"}>
                         {drive.type}
                       </Badge>
                     </div>
@@ -73,12 +122,14 @@ const CollegeDrives = () => {
                         <MapPin className="w-4 h-4" />
                         {drive.location}
                       </span>
-                      <span className="font-semibold text-primary">{drive.salary}</span>
+                      <span className="font-semibold text-primary">
+                        {drive.salary.currency} {drive.salary.min.toLocaleString()} - {drive.salary.max.toLocaleString()}
+                      </span>
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      {drive.skills.map((skill, idx) => (
-                        <Badge key={idx} variant="secondary">{skill}</Badge>
+                      {drive.requirements.slice(0, 3).map((req, idx) => (
+                        <Badge key={idx} variant="secondary">{req}</Badge>
                       ))}
                     </div>
                   </div>
@@ -97,7 +148,8 @@ const CollegeDrives = () => {
                 </div>
               </div>
             </Card>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
@@ -120,7 +172,7 @@ const CollegeDrives = () => {
                       {selectedDrive.company}
                     </DialogDescription>
                   </div>
-                  <Badge variant={selectedDrive.type === "Job" ? "default" : "secondary"}>
+                  <Badge variant={selectedDrive.type === "on-campus" ? "default" : "secondary"}>
                     {selectedDrive.type}
                   </Badge>
                 </div>
@@ -140,7 +192,9 @@ const CollegeDrives = () => {
                       <DollarSign className="w-4 h-4 text-primary" />
                       <p className="text-sm text-muted-foreground">Salary</p>
                     </div>
-                    <p className="text-lg font-bold">{selectedDrive.salary}</p>
+                    <p className="text-lg font-bold">
+                    {selectedDrive.salary.currency} {selectedDrive.salary.min.toLocaleString()} - {selectedDrive.salary.max.toLocaleString()}
+                  </p>
                   </div>
 
                   <div className="p-4 rounded-lg border border-border">
@@ -173,17 +227,17 @@ const CollegeDrives = () => {
                   <div className="p-4 rounded-lg border border-border">
                     <div className="flex items-center gap-2 mb-2">
                       <Briefcase className="w-4 h-4 text-muted-foreground" />
-                      <p className="text-sm font-semibold">Experience Level</p>
+                      <p className="text-sm font-semibold">Drive Type</p>
                     </div>
-                    <p className="text-base">{selectedDrive.experienceLevel || "Not specified"}</p>
+                    <p className="text-base">{selectedDrive.type}</p>
                   </div>
 
                   <div className="p-4 rounded-lg border border-border">
                     <div className="flex items-center gap-2 mb-2">
-                      <Clock className="w-4 h-4 text-muted-foreground" />
-                      <p className="text-sm font-semibold">Work Mode</p>
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                      <p className="text-sm font-semibold">Drive Date</p>
                     </div>
-                    <Badge variant="outline">{selectedDrive.workMode || "Not specified"}</Badge>
+                    <p className="text-base">{new Date(selectedDrive.driveDate).toLocaleDateString()}</p>
                   </div>
 
                   <div className="p-4 rounded-lg border border-border">
@@ -191,7 +245,7 @@ const CollegeDrives = () => {
                       <Calendar className="w-4 h-4 text-muted-foreground" />
                       <p className="text-sm font-semibold">Application Deadline</p>
                     </div>
-                    <p className="text-base">{formatDate(selectedDrive.applicationDeadline)}</p>
+                    <p className="text-base">{new Date(selectedDrive.deadline).toLocaleDateString()}</p>
                   </div>
 
                   <div className="p-4 rounded-lg border border-border">
@@ -199,7 +253,7 @@ const CollegeDrives = () => {
                       <Calendar className="w-4 h-4 text-muted-foreground" />
                       <p className="text-sm font-semibold">Posted Date</p>
                     </div>
-                    <p className="text-base">{formatDate(selectedDrive.postedDate)}</p>
+                    <p className="text-base">{new Date(selectedDrive.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
 
@@ -207,11 +261,11 @@ const CollegeDrives = () => {
                 <div className="grid grid-cols-3 gap-4">
                   <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
                     <p className="text-sm text-muted-foreground mb-1">Total Applicants</p>
-                    <p className="text-2xl font-bold text-primary">{selectedDrive.applicants || 0}</p>
+                    <p className="text-2xl font-bold text-primary">{selectedDrive.applicantsCount || 0}</p>
                   </div>
                   <div className="p-4 rounded-lg bg-success/10 border border-success/20">
                     <p className="text-sm text-muted-foreground mb-1">Shortlisted</p>
-                    <p className="text-2xl font-bold text-success">{selectedDrive.shortlisted || 0}</p>
+                    <p className="text-2xl font-bold text-success">{selectedDrive.selectedCount || 0}</p>
                   </div>
                   <div className="p-4 rounded-lg bg-secondary/10 border border-secondary/20">
                     <p className="text-sm text-muted-foreground mb-1">Interviews Scheduled</p>
@@ -221,25 +275,25 @@ const CollegeDrives = () => {
 
                 {/* Required Skills */}
                 <div className="p-4 rounded-lg border border-border">
-                  <p className="text-sm font-semibold mb-3">Required Skills</p>
+                  <p className="text-sm font-semibold mb-3">Requirements</p>
                   <div className="flex flex-wrap gap-2">
-                    {selectedDrive.skills.map((skill: string, idx: number) => (
+                    {selectedDrive.requirements.map((req: string, idx: number) => (
                       <Badge key={idx} variant="secondary" className="text-sm px-3 py-1">
-                        {skill}
+                        {req}
                       </Badge>
                     ))}
                   </div>
                 </div>
 
-                {/* Requirements */}
-                {selectedDrive.requirements && selectedDrive.requirements.length > 0 && (
+                {/* Benefits */}
+                {selectedDrive.benefits && selectedDrive.benefits.length > 0 && (
                   <div className="p-4 rounded-lg border border-border">
-                    <p className="text-sm font-semibold mb-3">Requirements</p>
+                    <p className="text-sm font-semibold mb-3">Benefits</p>
                     <ul className="space-y-2">
-                      {selectedDrive.requirements.map((req: string, idx: number) => (
+                      {selectedDrive.benefits.map((benefit: string, idx: number) => (
                         <li key={idx} className="flex items-start gap-2 text-sm">
                           <span className="text-primary mt-1">•</span>
-                          <span>{req}</span>
+                          <span>{benefit}</span>
                         </li>
                       ))}
                     </ul>

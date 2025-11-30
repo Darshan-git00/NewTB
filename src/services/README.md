@@ -159,34 +159,40 @@ interface PaginatedResponse<T> {
 }
 ```
 
-## 🔄 Mock Data
+## 🔄 Real API Integration
 
-The services use comprehensive mock data that mirrors real-world scenarios:
+The services are now fully integrated with the real backend API:
 
-- **Students**: 3+ mock students with profiles, skills, certifications
-- **Colleges**: 3+ mock colleges with departments and student data
-- **Recruiters**: 3+ mock recruiters from different companies
-- **Drives**: 4+ mock drives with various statuses and requirements
-- **Applications**: Multiple application scenarios with different statuses
-- **Interviews**: Mock interview data with AI analysis results
+- **Authentication**: JWT-based authentication with role-based access control
+- **Students**: Real student profiles, skills, certifications from database
+- **Colleges**: Real college data with departments and student information
+- **Recruiters**: Real recruiter profiles from different companies
+- **Drives**: Real drive postings with various statuses and requirements
+- **Applications**: Real application tracking with different statuses
+- **Interviews**: Real interview data with AI analysis results
 
-## 🚀 Migration to Real API
+## 🛡️ Authentication & Security
 
-When ready to connect to a real backend:
+All API calls now include:
+- JWT token authentication
+- Role-based access control (students, recruiters, colleges)
+- Automatic token refresh
+- Protected routes with middleware
 
-1. **Update API Configuration** (`api.ts`):
-   ```typescript
-   export const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://api.talentbridge.com';
-   ```
+## 🚀 API Configuration
 
-2. **Replace Mock Functions**:
-   - Update service functions to use `apiClient.get()`, `apiClient.post()`, etc.
-   - Remove `createMockApiCall` wrappers
-   - Add proper error handling
+The API is configured in (`api.ts`):
+```typescript
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+```
 
-3. **Update Response Handling**:
-   - Ensure real API responses match the expected format
-   - Update type definitions if needed
+## 📝 Service Functions
+
+All service functions now use real API calls:
+- `apiClient.get()`, `apiClient.post()`, `apiClient.put()`, `apiClient.delete()`
+- Proper error handling with try-catch blocks
+- Type-safe response handling
+- Automatic authentication token inclusion
 
 ## 🛡️ Error Handling
 

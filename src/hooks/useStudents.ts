@@ -16,10 +16,10 @@ export const studentKeys = {
 };
 
 // Student profile hooks
-export const useStudentProfile = (studentId: string, collegeId?: string) => {
+export const useStudentProfile = (studentId?: string, collegeId?: string) => {
   return useQuery({
-    queryKey: studentKeys.detail(studentId),
-    queryFn: () => studentService.getProfile(studentId), // TODO: Add collegeId when service supports filtering
+    queryKey: studentKeys.detail('me'), // Always use 'me' for consistency
+    queryFn: () => studentService.getProfile('me'), // Use /me endpoint instead of studentId
     select: (response) => response.data,
     enabled: !!studentId, // Only run query if studentId exists
   });
@@ -29,11 +29,12 @@ export const useUpdateStudentProfile = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ studentId, data }: { studentId: string; data: Partial<Student> }) =>
-      studentService.updateProfile(studentId, data),
-    onSuccess: (response, variables) => {
-      // Invalidate and refetch student profile
-      queryClient.invalidateQueries({ queryKey: studentKeys.detail(variables.studentId) });
+    mutationFn: ({ data }: { data: Partial<Student> }) =>
+      studentService.updateProfile('me', data),
+    onSuccess: (response) => {
+      // Force refetch the profile data and update cache
+      queryClient.refetchQueries({ queryKey: studentKeys.detail('me') });
+      queryClient.invalidateQueries({ queryKey: studentKeys.all });
     },
     onError: (error: any) => {
       console.error('Failed to update student profile:', error);
@@ -76,10 +77,10 @@ export const useWithdrawApplication = () => {
 };
 
 // Student interviews hooks
-export const useStudentInterviews = (studentId: string) => {
+export const useStudentInterviews = (studentId?: string, params?: PaginationParams) => {
   return useQuery({
-    queryKey: studentKeys.interviews(studentId),
-    queryFn: () => studentService.getInterviews(studentId),
+    queryKey: [...studentKeys.interviews(studentId || ''), params],
+    queryFn: () => studentService.getInterviews(params),
     select: (response) => response.data,
     enabled: !!studentId,
   });
@@ -95,10 +96,10 @@ export const useStudentInterviewById = (interviewId: string) => {
 };
 
 // Student notifications hooks
-export const useStudentNotifications = (studentId: string, params?: PaginationParams) => {
+export const useStudentNotifications = (studentId?: string, params?: PaginationParams) => {
   return useQuery({
-    queryKey: studentKeys.notifications(studentId),
-    queryFn: () => studentService.getNotifications(studentId, params),
+    queryKey: [...studentKeys.notifications(studentId || ''), params],
+    queryFn: () => studentService.getNotifications(params),
     select: (response) => response.data,
     enabled: !!studentId,
     staleTime: 30 * 1000, // 30 seconds for notifications
@@ -109,7 +110,7 @@ export const useMarkNotificationAsRead = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (notificationId: string) => studentService.markNotificationAsRead(notificationId),
+    mutationFn: (notificationId: string) => studentService.markNotificationRead(notificationId),
     onSuccess: (response, notificationId) => {
       // Invalidate notifications queries
       queryClient.invalidateQueries({ queryKey: studentKeys.lists() });
@@ -121,14 +122,16 @@ export const useMarkNotificationAsRead = () => {
 };
 
 // AI Interview hooks
-export const useStartAIInterview = () => {
+export const useStartAIInterview = (studentId?: string) => {
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: (applicationId: string) => studentService.startAIInterview(applicationId),
-    onSuccess: (response, applicationId) => {
+    onSuccess: (response, variables) => {
       // Invalidate interviews queries
-      queryClient.invalidateQueries({ queryKey: ['interviews'] });
+      if (studentId) {
+        queryClient.invalidateQueries({ queryKey: studentKeys.interviews(studentId) });
+      }
     },
     onError: (error: any) => {
       console.error('Failed to start AI interview:', error);
@@ -136,16 +139,17 @@ export const useStartAIInterview = () => {
   });
 };
 
-export const useSubmitAIInterview = () => {
+export const useSubmitAIInterview = (studentId?: string) => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ interviewId, responses }: { interviewId: string; responses: any[] }) =>
+    mutationFn: ({ interviewId, responses }: { interviewId: string; responses: any }) =>
       studentService.submitAIInterview(interviewId, responses),
     onSuccess: (response, variables) => {
-      // Invalidate interview and application queries
-      queryClient.invalidateQueries({ queryKey: ['interview', variables.interviewId] });
-      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      // Invalidate interviews queries
+      if (studentId) {
+        queryClient.invalidateQueries({ queryKey: studentKeys.interviews(studentId) });
+      }
     },
     onError: (error: any) => {
       console.error('Failed to submit AI interview:', error);

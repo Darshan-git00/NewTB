@@ -22,8 +22,9 @@ import {
   Square
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { saveAIInterviewResult } from "@/lib/studentStorage";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSubmitAIInterview } from "@/hooks";
 
 interface Message {
   id: string;
@@ -42,6 +43,9 @@ interface Question {
 
 const AIInterview = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const submitAIInterview = useSubmitAIInterview();
+  
   const [isInterviewStarted, setIsInterviewStarted] = useState(false);
   const [isInterviewPaused, setIsInterviewPaused] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -166,7 +170,22 @@ const AIInterview = () => {
       }
     };
     
-    saveAIInterviewResult(interviewResult);
+    // For now, store the interview result locally since this is a mock interview
+    // In a real implementation, you would have an interviewId from starting an AI interview
+    console.log('AI interview completed:', interviewResult);
+    
+    // TODO: When implementing real AI interviews, use:
+    // submitAIInterview.mutate({ 
+    //   interviewId: 'real-interview-id', 
+    //   responses: interviewResult 
+    // }, {
+    //   onSuccess: () => {
+    //     console.log('AI interview result submitted successfully');
+    //   },
+    //   onError: (error) => {
+    //     console.error('Failed to submit AI interview result:', error);
+    //   }
+    // });
     
     setMessages([
       ...messages,

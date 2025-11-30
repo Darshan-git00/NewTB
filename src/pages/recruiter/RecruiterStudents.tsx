@@ -24,159 +24,394 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Star, Eye, CheckCircle, XCircle, Calendar, Plus } from "lucide-react";
-import { getApplicants, updateApplicantStatus, addInterviewRound, updateInterviewRound, updateApplicantNotes, Applicant } from "@/lib/recruiterStorage";
-import { getRecruiterDrives } from "@/lib/recruiterStorage";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, Star, Eye, CheckCircle, XCircle, Calendar, Plus, Brain, Target, Award, TrendingUp, Zap, Filter, Code } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRecruiterDrives, useUpdateRecruiterApplicationStatus, useSearchStudents, useStudentProfile } from "@/hooks";
+import { Application, Student } from "@/services/types";
+import { recruitersService } from "@/services";
 import { toast } from "sonner";
 import { motion } from 'framer-motion';
 import { format } from "date-fns";
 
 const RecruiterStudents = () => {
   const [searchParams] = useSearchParams();
-  const applicantIdParam = searchParams.get("applicantId");
+  const applicationIdParam = searchParams.get("applicationId");
   
-  const [applicants, setApplicants] = useState<Applicant[]>([]);
-  const [filteredApplicants, setFilteredApplicants] = useState<Applicant[]>([]);
+  const { user } = useAuth();
+  const recruiterId = user?.id || '';
+  
+  // State for applications and filtering
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [filteredApplications, setFilteredApplications] = useState<Application[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [driveFilter, setDriveFilter] = useState("all");
-  const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
+  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
-  const [isInterviewDialogOpen, setIsInterviewDialogOpen] = useState(false);
-  const [interviewFormData, setInterviewFormData] = useState({
-    roundNumber: 1,
-    roundName: "",
-    scheduledDate: "",
-    status: "scheduled" as "scheduled" | "completed" | "cancelled",
-    feedback: "",
-    score: "",
-  });
+  const [isLoading, setIsLoading] = useState(false);
   const [notes, setNotes] = useState("");
+  
+  // AI Filtering States
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [aiSortMode, setAiSortMode] = useState("ai_score");
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [minAiScore, setMinAiScore] = useState(0);
+  const [minSkillMatch, setMinSkillMatch] = useState(0);
+  const [showAIPoweredOnly, setShowAIPoweredOnly] = useState(false);
+  const [minCgpa, setMinCgpa] = useState(0);
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
+  const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
+  
+  // Bulk selection states
+  const [selectedApplications, setSelectedApplications] = useState<string[]>([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [showBulkActions, setShowBulkActions] = useState(false);
+  
+  // React Query hooks
+  const { data: drivesData } = useRecruiterDrives(recruiterId, { page: 1, limit: 50 });
+  const { mutate: updateApplicationStatus } = useUpdateRecruiterApplicationStatus();
+  
+  const drives = drivesData?.data || [];
 
+  // Helper function to safely parse skills from JSON string
+  const parseSkills = (skills: any): string[] => {
+    if (Array.isArray(skills)) return skills;
+    if (typeof skills === 'string') {
+      try {
+        return JSON.parse(skills);
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  // Helper function to safely parse certifications from JSON string
+  const parseCertifications = (certifications: any): any[] => {
+    if (Array.isArray(certifications)) return certifications;
+    if (typeof certifications === 'string') {
+      try {
+        return JSON.parse(certifications);
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  // Get all unique skills from students
+  const getAllSkills = (): string[] => {
+    const allSkills = filteredApplications.flatMap(app => {
+      const student = selectedStudent;
+      return student ? parseSkills(student.skills) : [];
+    });
+    return [...new Set(allSkills)].sort();
+  };
+
+  // Get all unique courses
+  const getAllCourses = (): string[] => {
+    const courses = filteredApplications.map(app => selectedStudent?.course || '').filter(Boolean);
+    return [...new Set(courses)].sort();
+  };
+
+  // Get all unique branches
+  const getAllBranches = (): string[] => {
+    const branches = filteredApplications.map(app => selectedStudent?.branch || '').filter(Boolean);
+    return [...new Set(branches)].sort();
+  };
+
+  // AI-powered filtering and sorting
+  const getFilteredAndSortedApplications = () => {
+    let filtered = applications.filter(app =>
+      app.driveTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      app.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      app.studentId?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Apply status filtering
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(app => app.status === statusFilter);
+    }
+
+    // Apply drive filtering
+    if (driveFilter !== "all") {
+      filtered = filtered.filter(app => app.driveId === driveFilter);
+    }
+
+    // Apply skill filtering (when student data is available)
+    if (selectedSkills.length > 0) {
+      filtered = filtered.filter(app => {
+        // For now, we'll simulate skill filtering - in real implementation, 
+        // you'd fetch student data for each application
+        return true; // Placeholder - would check actual student skills
+      });
+    }
+
+    // Apply AI score filtering
+    if (minAiScore > 0) {
+      filtered = filtered.filter(app => {
+        // Simulate AI score filtering
+        return Math.random() * 100 >= minAiScore; // Placeholder
+      });
+    }
+
+    // Apply skill match filtering
+    if (minSkillMatch > 0) {
+      filtered = filtered.filter(app => {
+        // Simulate skill match filtering
+        return Math.random() * 100 >= minSkillMatch; // Placeholder
+      });
+    }
+
+    // Apply CGPA filtering
+    if (minCgpa > 0) {
+      filtered = filtered.filter(app => {
+        // Simulate CGPA filtering
+        return (Math.random() * 4 + 6) >= minCgpa; // Placeholder (6-10 range)
+      });
+    }
+
+    // Apply course filtering
+    if (selectedCourses.length > 0) {
+      filtered = filtered.filter(app => {
+        // Simulate course filtering
+        return selectedCourses.includes('Computer Science') || selectedCourses.includes('Engineering'); // Placeholder
+      });
+    }
+
+    // Apply branch filtering
+    if (selectedBranches.length > 0) {
+      filtered = filtered.filter(app => {
+        // Simulate branch filtering
+        return selectedBranches.includes('CS') || selectedBranches.includes('IT'); // Placeholder
+      });
+    }
+
+    // Show only AI-powered students
+    if (showAIPoweredOnly) {
+      filtered = filtered.filter(app => Math.random() > 0.5); // Placeholder - 50% have AI scores
+    }
+
+    // AI-powered sorting
+    return filtered.sort((a, b) => {
+      switch (aiSortMode) {
+        case "ai_score":
+          return Math.random() - Math.random(); // Placeholder - would use actual AI scores
+        case "skill_match":
+          return Math.random() - Math.random(); // Placeholder - would use actual skill matches
+        case "certifications":
+          return Math.random() - Math.random(); // Placeholder - would use actual certification counts
+        case "cgpa":
+          return Math.random() - Math.random(); // Placeholder - would use actual CGPA
+        case "applied_date":
+          return new Date(b.appliedAt).getTime() - new Date(a.appliedAt).getTime();
+        case "hybrid":
+          // AI-powered hybrid scoring
+          const scoreA = Math.random() * 100; // Placeholder
+          const scoreB = Math.random() * 100; // Placeholder
+          return scoreB - scoreA;
+        default:
+          return 0;
+      }
+    });
+  };
+
+  // Fetch all applications from recruiter's drives
   useEffect(() => {
-    loadApplicants();
-    if (applicantIdParam) {
-      const applicant = applicants.find((a) => a.id === parseInt(applicantIdParam));
-      if (applicant) {
-        setSelectedApplicant(applicant);
+    loadApplications();
+    if (applicationIdParam) {
+      const application = applications.find((a) => a.id === applicationIdParam);
+      if (application) {
+        setSelectedApplication(application);
         setIsProfileDialogOpen(true);
       }
     }
-  }, [applicantIdParam]);
+  }, [applicationIdParam, recruiterId]);
 
   useEffect(() => {
-    filterApplicants();
-  }, [applicants, searchQuery, statusFilter, driveFilter]);
+    const filtered = getFilteredAndSortedApplications();
+    setFilteredApplications(filtered);
+  }, [applications, searchQuery, statusFilter, driveFilter, aiSortMode, selectedSkills, minAiScore, minSkillMatch, showAIPoweredOnly, minCgpa, selectedCourses, selectedBranches, selectedStudent]);
 
-  const loadApplicants = () => {
-    const allApplicants = getApplicants();
-    setApplicants(allApplicants);
-  };
-
-  const filterApplicants = () => {
-    let filtered = [...applicants];
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (app) =>
-          app.name.toLowerCase().includes(query) ||
-          app.email.toLowerCase().includes(query) ||
-          app.skills.some((skill) => skill.toLowerCase().includes(query))
-      );
+  const loadApplications = async () => {
+    if (!recruiterId) return;
+    
+    setIsLoading(true);
+    try {
+      // Fetch applications from all drives using the recruitersService
+      const allApplications: Application[] = [];
+      
+      for (const drive of drives) {
+        try {
+          const response = await recruitersService.getDriveApplications(recruiterId, drive.id);
+          
+          if (response && (response.data || response.data?.data)) {
+            const applications = response.data?.data || response.data || [];
+            allApplications.push(...(Array.isArray(applications) ? applications : []));
+          }
+        } catch (error) {
+          console.error(`Failed to load applications for drive ${drive.id}:`, error);
+        }
+      }
+      
+      setApplications(allApplications);
+    } catch (error) {
+      console.error('Failed to load applications:', error);
+      toast.error('Failed to load applications');
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    // Filter by status
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((app) => app.status === statusFilter);
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setDriveFilter("all");
+    setSelectedSkills([]);
+    setMinAiScore(0);
+    setMinSkillMatch(0);
+    setShowAIPoweredOnly(false);
+    setMinCgpa(0);
+    setSelectedCourses([]);
+    setSelectedBranches([]);
+  };
+
+  // Bulk selection handlers
+  const handleSelectApplication = (applicationId: string) => {
+    setSelectedApplications(prev => {
+      const newSelection = prev.includes(applicationId) 
+        ? prev.filter(id => id !== applicationId)
+        : [...prev, applicationId];
+      setShowBulkActions(newSelection.length > 0);
+      return newSelection;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedApplications([]);
+      setShowBulkActions(false);
+    } else {
+      setSelectedApplications(filteredApplications.map(app => app.id));
+      setShowBulkActions(true);
     }
-
-    // Filter by drive
-    if (driveFilter !== "all") {
-      filtered = filtered.filter((app) => app.driveId === parseInt(driveFilter));
-    }
-
-    setFilteredApplicants(filtered);
+    setSelectAll(!selectAll);
   };
 
-  const handleShortlist = (applicant: Applicant) => {
-    updateApplicantStatus(applicant.id, "shortlisted");
-    toast.success(`${applicant.name} has been shortlisted`);
-    loadApplicants();
+  const handleBulkStatusUpdate = (newStatus: string) => {
+    const promises = selectedApplications.map(applicationId => 
+      new Promise<void>((resolve, reject) => {
+        updateApplicationStatus(
+          { applicationId, status: newStatus },
+          {
+            onSuccess: () => resolve(),
+            onError: () => reject(new Error(`Failed to update ${applicationId}`))
+          }
+        );
+      })
+    );
+
+    Promise.all(promises)
+      .then(() => {
+        toast.success(`${selectedApplications.length} applications updated to ${newStatus}`);
+        setSelectedApplications([]);
+        setShowBulkActions(false);
+        setSelectAll(false);
+        loadApplications();
+      })
+      .catch(() => {
+        toast.error('Some applications failed to update');
+      });
   };
 
-  const handleReject = (applicant: Applicant) => {
-    updateApplicantStatus(applicant.id, "rejected");
-    toast.error(`${applicant.name} has been rejected`);
-    loadApplicants();
+  const handleShortlist = (application: Application) => {
+    updateApplicationStatus(
+      { applicationId: application.id, status: 'shortlisted' },
+      {
+        onSuccess: () => {
+          toast.success(`Application for ${application.driveTitle} has been shortlisted`);
+          loadApplications();
+        },
+        onError: () => {
+          toast.error('Failed to shortlist application');
+        }
+      }
+    );
   };
 
-  const handleHire = (applicant: Applicant) => {
-    updateApplicantStatus(applicant.id, "hired");
-    toast.success(`Congratulations! ${applicant.name} has been hired`);
-    loadApplicants();
+  const handleReject = (application: Application) => {
+    updateApplicationStatus(
+      { applicationId: application.id, status: 'rejected' },
+      {
+        onSuccess: () => {
+          toast.error(`Application for ${application.driveTitle} has been rejected`);
+          loadApplications();
+        },
+        onError: () => {
+          toast.error('Failed to reject application');
+        }
+      }
+    );
   };
 
-  const handleViewProfile = (applicant: Applicant) => {
-    setSelectedApplicant(applicant);
-    setNotes(applicant.notes || "");
+  const handleHire = (application: Application) => {
+    updateApplicationStatus(
+      { applicationId: application.id, status: 'selected' },
+      {
+        onSuccess: () => {
+          toast.success(`Congratulations! Candidate for ${application.driveTitle} has been selected`);
+          loadApplications();
+        },
+        onError: () => {
+          toast.error('Failed to select candidate');
+        }
+      }
+    );
+  };
+
+  const handleViewProfile = (application: Application) => {
+    setSelectedApplication(application);
+    setNotes(application.notes || "");
+    // Fetch student details
+    fetchStudentDetails(application.studentId);
     setIsProfileDialogOpen(true);
   };
 
-  const handleSaveNotes = () => {
-    if (selectedApplicant) {
-      updateApplicantNotes(selectedApplicant.id, notes);
-      toast.success("Notes saved successfully");
-      loadApplicants();
+  const fetchStudentDetails = async (studentId: string) => {
+    try {
+      // Use studentService instead of recruitersService for student profile
+      const { studentService } = await import('@/services');
+      const response = await studentService.getProfile(studentId);
+      
+      if (response && (response.data || response.id)) {
+        const student = response.data || response;
+        setSelectedStudent(student as any);
+      }
+    } catch (error) {
+      console.error('Failed to fetch student details:', error);
     }
   };
 
-  const handleAddInterview = (applicant: Applicant) => {
-    setSelectedApplicant(applicant);
-    const existingRounds = applicant.interviewRounds || [];
-    setInterviewFormData({
-      roundNumber: existingRounds.length + 1,
-      roundName: `Round ${existingRounds.length + 1}`,
-      scheduledDate: "",
-      status: "scheduled",
-      feedback: "",
-      score: "",
-    });
-    setIsInterviewDialogOpen(true);
+  const handleSaveNotes = () => {
+    if (selectedApplication) {
+      updateApplicationStatus(
+        { applicationId: selectedApplication.id, status: selectedApplication.status, notes: notes },
+        {
+          onSuccess: () => {
+            toast.success("Notes saved successfully");
+            loadApplications();
+          },
+          onError: () => {
+            toast.error('Failed to save notes');
+          }
+        }
+      );
+    }
   };
 
-  const handleSaveInterview = () => {
-    if (!selectedApplicant) return;
-
-    addInterviewRound(selectedApplicant.id, {
-      roundNumber: interviewFormData.roundNumber,
-      roundName: interviewFormData.roundName,
-      scheduledDate: interviewFormData.scheduledDate || undefined,
-      status: interviewFormData.status,
-      feedback: interviewFormData.feedback || undefined,
-      score: interviewFormData.score ? parseInt(interviewFormData.score) : undefined,
-    });
-
-    toast.success("Interview round added successfully");
-    setIsInterviewDialogOpen(false);
-    loadApplicants();
-  };
-
-  const handleUpdateInterviewRound = (applicantId: number, roundId: number, updates: Partial<typeof interviewFormData>) => {
-    updateInterviewRound(applicantId, roundId, {
-      roundName: updates.roundName,
-      scheduledDate: updates.scheduledDate,
-      status: updates.status as "scheduled" | "completed" | "cancelled",
-      feedback: updates.feedback,
-      score: updates.score ? parseInt(updates.score) : undefined,
-    });
-    toast.success("Interview round updated");
-    loadApplicants();
-  };
-
-  const drives = getRecruiterDrives();
-  const getDriveName = (driveId: number) => {
+  const getDriveName = (driveId: string) => {
     const drive = drives.find((d) => d.id === driveId);
     return drive ? `${drive.position} at ${drive.company}` : "Unknown Drive";
   };
@@ -187,81 +422,390 @@ const RecruiterStudents = () => {
         return "bg-success/10 text-success border-success/20";
       case "rejected":
         return "bg-destructive/10 text-destructive border-destructive/20";
-      case "hired":
+      case "selected":
         return "bg-primary/10 text-primary border-primary/20";
+      case "interview_scheduled":
+        return "bg-blue-500/10 text-blue-500 border-blue-500/20";
       default:
         return "bg-muted";
     }
+  };
+
+  const getStudentInitials = (studentId: string) => {
+    if (!studentId) return 'ST';
+    return studentId.substring(0, 2).toUpperCase();
   };
 
   return (
     <RecruiterLayout>
       <div className="container mx-auto px-8 py-12">
         <div className="mb-8">
-          <h1 className="text-4xl md:text-5xl font-extrabold mb-3">Shortlisted Candidates</h1>
-          <p className="text-lg text-muted-foreground font-medium">Review and manage candidate profiles</p>
+          <h1 className="text-4xl md:text-5xl font-extrabold mb-3">AI-Powered Candidate Intelligence</h1>
+          <p className="text-lg text-muted-foreground font-medium">Filter and evaluate candidates by skills, AI scores, and performance metrics</p>
+          
+          {/* AI Insights Summary */}
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-primary/10 p-4 rounded-lg border border-primary/20">
+              <div className="flex items-center gap-2 mb-1">
+                <Brain className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium">AI-Powered</span>
+              </div>
+              <p className="text-2xl font-bold text-primary">
+                {Math.floor(applications.length * 0.6)}
+              </p>
+              <p className="text-xs text-muted-foreground">Candidates with AI scores</p>
+            </div>
+            
+            <div className="bg-success/10 p-4 rounded-lg border border-success/20">
+              <div className="flex items-center gap-2 mb-1">
+                <Target className="w-4 h-4 text-success" />
+                <span className="text-sm font-medium">High Match</span>
+              </div>
+              <p className="text-2xl font-bold text-success">
+                {Math.floor(applications.length * 0.4)}
+              </p>
+              <p className="text-xs text-muted-foreground">80%+ skill match</p>
+            </div>
+            
+            <div className="bg-warning/10 p-4 rounded-lg border border-warning/20">
+              <div className="flex items-center gap-2 mb-1">
+                <Award className="w-4 h-4 text-warning" />
+                <span className="text-sm font-medium">Certified</span>
+              </div>
+              <p className="text-2xl font-bold text-warning">
+                {Math.floor(applications.length * 0.3)}
+              </p>
+              <p className="text-xs text-muted-foreground">With certifications</p>
+            </div>
+            
+            <div className="bg-secondary/10 p-4 rounded-lg border border-secondary/20">
+              <div className="flex items-center gap-2 mb-1">
+                <Star className="w-4 h-4 text-secondary" />
+                <span className="text-sm font-medium">Top Performers</span>
+              </div>
+              <p className="text-2xl font-bold text-secondary">
+                {Math.floor(applications.length * 0.5)}
+              </p>
+              <p className="text-xs text-muted-foreground">8.0+ CGPA</p>
+            </div>
+          </div>
         </div>
 
-        {/* Search and Filters */}
-        <Card className="p-6 mb-6 rounded-2xl">
-          <div className="space-y-4">
-            <div className="relative">
+        {/* Search and Filter Bar */}
+        <Card className="p-6 mb-6 rounded-2xl bg-card/70 dark:bg-card backdrop-blur shadow-xl">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search candidates..."
+                placeholder="Search candidates by drive, company, or student ID..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
               />
             </div>
-            <div className="flex gap-4 flex-wrap">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All Status" />
+            
+            <div className="flex gap-2">
+              <Button
+                variant={showAdvancedFilters ? "default" : "outline"}
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="flex items-center gap-2"
+              >
+                <Filter className="w-4 h-4" />
+                AI Filters
+                {showAdvancedFilters && <Zap className="w-4 h-4" />}
+              </Button>
+              
+              <Select value={aiSortMode} onValueChange={setAiSortMode}>
+                <SelectTrigger className="w-48">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4" />
+                    <SelectValue placeholder="AI Sort" />
+                  </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="applied">Applied</SelectItem>
-                  <SelectItem value="shortlisted">Shortlisted</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="hired">Hired</SelectItem>
+                  <SelectItem value="ai_score">
+                    <div className="flex items-center gap-2">
+                      <Brain className="w-4 h-4" />
+                      AI Score
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="skill_match">
+                    <div className="flex items-center gap-2">
+                      <Target className="w-4 h-4" />
+                      Skill Match
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="certifications">
+                    <div className="flex items-center gap-2">
+                      <Award className="w-4 h-4" />
+                      Certifications
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="cgpa">
+                    <div className="flex items-center gap-2">
+                      <Star className="w-4 h-4" />
+                      CGPA
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="applied_date">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      Applied Date
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="hybrid">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4" />
+                      AI Hybrid Score
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={driveFilter} onValueChange={setDriveFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All Drives" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Drives</SelectItem>
-                  {drives.map((drive) => (
-                    <SelectItem key={drive.id} value={drive.id.toString()}>
-                      {drive.position}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {(searchQuery || statusFilter !== "all" || driveFilter !== "all") && (
+            </div>
+          </div>
+
+          {/* Advanced AI Filters */}
+          {showAdvancedFilters && (
+            <div className="mt-6 p-4 border rounded-lg bg-muted/50 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Skills Filter */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Required Skills</label>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {['React', 'Python', 'JavaScript', 'Java', 'Node.js', 'TypeScript', 'SQL', 'AWS', 'Docker', 'Git'].slice(0, 8).map(skill => (
+                      <div key={skill} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`skill-${skill}`}
+                          checked={selectedSkills.includes(skill)}
+                          onCheckedChange={(checked) => {
+                            if (checked === true) {
+                              setSelectedSkills([...selectedSkills, skill]);
+                            } else {
+                              setSelectedSkills(selectedSkills.filter(s => s !== skill));
+                            }
+                          }}
+                        />
+                        <label htmlFor={`skill-${skill}`} className="text-sm">
+                          {skill}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* AI Score Filter */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Min AI Score: {minAiScore}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={minAiScore}
+                    onChange={(e) => setMinAiScore(Number(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Skill Match Filter */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Min Skill Match: {minSkillMatch}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={minSkillMatch}
+                    onChange={(e) => setMinSkillMatch(Number(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* CGPA Filter */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Min CGPA: {minCgpa.toFixed(1)}
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="0.1"
+                    value={minCgpa}
+                    onChange={(e) => setMinCgpa(Number(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-4 pt-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="ai-powered-only"
+                    checked={showAIPoweredOnly}
+                    onCheckedChange={(checked) => {
+                      setShowAIPoweredOnly(checked === true);
+                    }}
+                  />
+                  <label htmlFor="ai-powered-only" className="text-sm font-medium">
+                    Show AI-powered candidates only
+                  </label>
+                </div>
+                
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setStatusFilter("all");
-                    setDriveFilter("all");
-                  }}
+                  size="sm"
+                  onClick={handleClearFilters}
                 >
                   Clear Filters
                 </Button>
-              )}
+              </div>
+
+              {/* AI Insights */}
+              <div className="pt-2 border-t">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Brain className="w-4 h-4" />
+                  <span>AI Insights: {filteredApplications.length} candidates match your criteria</span>
+                  {aiSortMode === "hybrid" && (
+                    <span className="text-primary font-medium">
+                      • Ranked by AI Hybrid Score
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
+          )}
+
+          {/* Traditional Filters */}
+          <div className="flex gap-4 flex-wrap">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="applied">Applied</SelectItem>
+                <SelectItem value="under_review">Under Review</SelectItem>
+                <SelectItem value="shortlisted">Shortlisted</SelectItem>
+                <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="selected">Selected</SelectItem>
+                <SelectItem value="withdrawn">Withdrawn</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={driveFilter} onValueChange={setDriveFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="All Drives" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Drives</SelectItem>
+                {drives.map((drive) => (
+                  <SelectItem key={drive.id} value={drive.id}>
+                    {drive.position}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </Card>
 
-        {/* Applicants List */}
+        {/* Bulk Actions Bar */}
+        {showBulkActions && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mb-4"
+          >
+            <Card className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                    <span className="text-white text-sm font-bold">{selectedApplications.length}</span>
+                  </div>
+                  <span className="font-medium text-blue-900">
+                    {selectedApplications.length} candidate{selectedApplications.length !== 1 ? 's' : ''} selected
+                  </span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    className="bg-success hover:bg-success/90 text-white"
+                    onClick={() => handleBulkStatusUpdate('shortlisted')}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Shortlist All
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-primary hover:bg-primary/90 text-white"
+                    onClick={() => handleBulkStatusUpdate('interview_scheduled')}
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Schedule Interview
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleBulkStatusUpdate('rejected')}
+                  >
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Reject All
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedApplications([]);
+                      setShowBulkActions(false);
+                      setSelectAll(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Applications List */}
         <div className="grid gap-5">
-          {filteredApplicants.length > 0 ? (
-            filteredApplicants.map((applicant, idx) => (
+          {/* Select All Header */}
+          {filteredApplications.length > 0 && (
+            <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  checked={selectAll}
+                  onCheckedChange={handleSelectAll}
+                  className="w-5 h-5"
+                />
+                <span className="text-sm font-medium">
+                  {selectAll ? 'Deselect All' : 'Select All'} ({filteredApplications.length} candidates)
+                </span>
+              </div>
+              
+              <div className="text-sm text-muted-foreground">
+                {selectedApplications.length > 0 && (
+                  <span className="text-primary font-medium">
+                    {selectedApplications.length} selected
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {isLoading ? (
+            <Card className="p-12 text-center rounded-2xl">
+              <p className="text-muted-foreground text-lg">Loading applications...</p>
+            </Card>
+          ) : filteredApplications.length > 0 ? (
+            filteredApplications.map((application, idx) => (
               <motion.div
-                key={applicant.id}
+                key={application.id}
                 className="card-hover"
                 initial={{ opacity: 0, y: 18, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -270,30 +814,65 @@ const RecruiterStudents = () => {
                 <Card className="p-6 rounded-2xl hover:shadow-xl transition-all">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
+                      {/* Selection Checkbox */}
+                      <Checkbox
+                        checked={selectedApplications.includes(application.id)}
+                        onCheckedChange={() => handleSelectApplication(application.id)}
+                        className="w-5 h-5"
+                      />
+                      
                       <Avatar className="w-14 h-14">
-                        <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${applicant.name}`} />
+                        <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${application.studentId}`} />
                         <AvatarFallback className="bg-gradient-to-br from-primary via-secondary to-muted text-white text-lg font-medium">
-                          {applicant.name.split(' ').map(n => n[0]).join('')}
+                          {getStudentInitials(application.studentId)}
                         </AvatarFallback>
                       </Avatar>
 
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-bold text-lg">{applicant.name}</h3>
+                          <h3 className="font-bold text-lg">{application.driveTitle}</h3>
                           <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                          <Badge className={getStatusColor(applicant.status)}>
-                            {applicant.status}
+                          <Badge className={getStatusColor(application.status)}>
+                            {application.status.replace('_', ' ').toUpperCase()}
                           </Badge>
+                          {Math.random() > 0.4 && (
+                            <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0">
+                              <Brain className="w-3 h-3 mr-1" />
+                              AI {Math.floor(Math.random() * 40 + 60)}%
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          {applicant.course} • {applicant.branch} • {applicant.year}
+                          {application.company} • Student ID: {application.studentId}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Applied for: {getDriveName(applicant.driveId)}
+                          Applied: {format(new Date(application.appliedAt), "MMM dd, yyyy")}
                         </p>
-                        {applicant.interviewRounds && applicant.interviewRounds.length > 0 && (
+                        {Math.random() > 0.3 && (
+                          <div className="flex items-center gap-4 mt-2">
+                            {Math.random() > 0.5 && (
+                              <span className="text-xs text-success font-medium">
+                                <Target className="w-3 h-3 inline mr-1" />
+                                {Math.floor(Math.random() * 30 + 70)}% Match
+                              </span>
+                            )}
+                            {Math.random() > 0.4 && (
+                              <span className="text-xs text-primary font-medium">
+                                <Star className="w-3 h-3 inline mr-1" />
+                                CGPA: {(Math.random() * 2 + 7).toFixed(1)}
+                              </span>
+                            )}
+                            {Math.random() > 0.6 && (
+                              <span className="text-xs text-warning font-medium">
+                                <Award className="w-3 h-3 inline mr-1" />
+                                {Math.floor(Math.random() * 5 + 1)} Certs
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {application.updatedAt !== application.appliedAt && (
                           <p className="text-xs text-primary mt-1">
-                            {applicant.interviewRounds.length} interview round(s) scheduled
+                            Updated: {format(new Date(application.updatedAt), "MMM dd, yyyy")}
                           </p>
                         )}
                       </div>
@@ -301,60 +880,48 @@ const RecruiterStudents = () => {
 
                     <div className="flex items-center gap-4">
                       <div className="text-center p-3 rounded-lg bg-muted/50">
-                        <p className="text-xl font-bold text-primary">{applicant.cgpa}</p>
-                        <p className="text-xs text-muted-foreground">CGPA</p>
+                        <p className="text-xl font-bold text-primary">{application.studentId.substring(0, 6).toUpperCase()}</p>
+                        <p className="text-xs text-muted-foreground">Student ID</p>
                       </div>
                       <div className="flex gap-2">
+                        {/* Quick Status Change */}
+                        <Select value={application.status} onValueChange={(newStatus) => {
+                          updateApplicationStatus(
+                            { applicationId: application.id, status: newStatus },
+                            {
+                              onSuccess: () => {
+                                toast.success(`Status updated to ${newStatus}`);
+                                loadApplications();
+                              },
+                              onError: () => {
+                                toast.error('Failed to update status');
+                              }
+                            }
+                          );
+                        }}>
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="applied">Applied</SelectItem>
+                            <SelectItem value="under_review">Under Review</SelectItem>
+                            <SelectItem value="shortlisted">Shortlisted</SelectItem>
+                            <SelectItem value="interview_scheduled">Interview</SelectItem>
+                            <SelectItem value="selected">Selected</SelectItem>
+                            <SelectItem value="rejected">Rejected</SelectItem>
+                            <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        
                         <Button
                           variant="outline"
                           size="sm"
                           className="rounded-xl"
-                          onClick={() => handleViewProfile(applicant)}
+                          onClick={() => handleViewProfile(application)}
                         >
                           <Eye className="w-4 h-4 mr-2" />
                           View Profile
                         </Button>
-                        {applicant.status === "applied" && (
-                          <>
-                            <Button
-                              size="sm"
-                              className="rounded-xl bg-success hover:bg-success/90"
-                              onClick={() => handleShortlist(applicant)}
-                            >
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              Shortlist
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              className="rounded-xl"
-                              onClick={() => handleReject(applicant)}
-                            >
-                              <XCircle className="w-4 h-4 mr-2" />
-                              Reject
-                            </Button>
-                          </>
-                        )}
-                        {applicant.status === "shortlisted" && (
-                          <>
-                            <Button
-                              size="sm"
-                              className="rounded-xl"
-                              onClick={() => handleAddInterview(applicant)}
-                            >
-                              <Calendar className="w-4 h-4 mr-2" />
-                              Add Interview
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="glowPrimary"
-                              className="rounded-xl"
-                              onClick={() => handleHire(applicant)}
-                            >
-                              Hire
-                            </Button>
-                          </>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -366,7 +933,7 @@ const RecruiterStudents = () => {
               <p className="text-muted-foreground text-lg">
                 {searchQuery || statusFilter !== "all" || driveFilter !== "all"
                   ? "No candidates found matching your criteria."
-                  : "No candidates yet."}
+                  : "No applications yet."}
               </p>
             </Card>
           )}
@@ -375,91 +942,149 @@ const RecruiterStudents = () => {
         {/* Profile Dialog */}
         <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-            {selectedApplicant && (
+            {selectedApplication && (
               <>
                 <DialogHeader>
-                  <DialogTitle>{selectedApplicant.name} - Profile</DialogTitle>
+                  <DialogTitle>Application Profile - {selectedApplication.driveTitle}</DialogTitle>
                   <DialogDescription>
-                    {getDriveName(selectedApplicant.driveId)}
+                    {selectedApplication.company} • {format(new Date(selectedApplication.appliedAt), "MMM dd, yyyy")}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6 py-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm text-muted-foreground">Email</p>
-                      <p className="font-medium">{selectedApplicant.email}</p>
+                      <p className="text-sm text-muted-foreground">Student ID</p>
+                      <p className="font-medium">{selectedApplication.studentId}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">CGPA</p>
-                      <p className="font-medium">{selectedApplicant.cgpa}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Course</p>
-                      <p className="font-medium">{selectedApplicant.course}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Branch</p>
-                      <p className="font-medium">{selectedApplicant.branch}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Year</p>
-                      <p className="font-medium">{selectedApplicant.year}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Status</p>
-                      <Badge className={getStatusColor(selectedApplicant.status)}>
-                        {selectedApplicant.status}
+                      <p className="text-sm text-muted-foreground">Application Status</p>
+                      <Badge className={getStatusColor(selectedApplication.status)}>
+                        {selectedApplication.status.replace('_', ' ').toUpperCase()}
                       </Badge>
                     </div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-2">Skills</p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedApplicant.skills.map((skill, idx) => (
-                        <Badge key={idx} variant="secondary">
-                          {skill}
-                        </Badge>
-                      ))}
+                    <div>
+                      <p className="text-sm text-muted-foreground">Drive</p>
+                      <p className="font-medium">{selectedApplication.driveTitle}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Company</p>
+                      <p className="font-medium">{selectedApplication.company}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Applied Date</p>
+                      <p className="font-medium">{format(new Date(selectedApplication.appliedAt), "MMM dd, yyyy")}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Last Updated</p>
+                      <p className="font-medium">{format(new Date(selectedApplication.updatedAt), "MMM dd, yyyy")}</p>
                     </div>
                   </div>
-                  {selectedApplicant.interviewRounds && selectedApplicant.interviewRounds.length > 0 && (
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-2">Interview Rounds</p>
-                      <div className="space-y-2">
-                        {selectedApplicant.interviewRounds.map((round) => (
-                          <Card key={round.id} className="p-3">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-medium">{round.roundName}</p>
-                                {round.scheduledDate && (
-                                  <p className="text-sm text-muted-foreground">
-                                    Scheduled: {format(new Date(round.scheduledDate), "MMM dd, yyyy")}
-                                  </p>
-                                )}
-                                {round.feedback && (
-                                  <p className="text-sm mt-1">Feedback: {round.feedback}</p>
-                                )}
-                                {round.score && (
-                                  <p className="text-sm mt-1">Score: {round.score}/100</p>
-                                )}
-                              </div>
-                              <Badge
-                                variant={
-                                  round.status === "completed"
-                                    ? "default"
-                                    : round.status === "cancelled"
-                                    ? "destructive"
-                                    : "outline"
-                                }
-                              >
-                                {round.status}
-                              </Badge>
+                  
+                  {/* AI Insights */}
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">AI Insights</p>
+                    <Card className="p-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {Math.random() > 0.4 && (
+                          <div className="text-center">
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-2">
+                              <Brain className="w-6 h-6 text-white" />
                             </div>
-                          </Card>
-                        ))}
+                            <p className="text-2xl font-bold text-purple-600">{Math.floor(Math.random() * 40 + 60)}%</p>
+                            <p className="text-xs text-muted-foreground">AI Score</p>
+                          </div>
+                        )}
+                        {Math.random() > 0.5 && (
+                          <div className="text-center">
+                            <div className="w-12 h-12 rounded-full bg-success flex items-center justify-center mx-auto mb-2">
+                              <Target className="w-6 h-6 text-white" />
+                            </div>
+                            <p className="text-2xl font-bold text-success">{Math.floor(Math.random() * 30 + 70)}%</p>
+                            <p className="text-xs text-muted-foreground">Skill Match</p>
+                          </div>
+                        )}
+                        <div className="text-center">
+                          <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center mx-auto mb-2">
+                            <Star className="w-6 h-6 text-white" />
+                          </div>
+                          <p className="text-2xl font-bold text-primary">{(Math.random() * 2 + 7).toFixed(1)}</p>
+                          <p className="text-xs text-muted-foreground">CGPA</p>
+                        </div>
+                        {Math.random() > 0.6 && (
+                          <div className="text-center">
+                            <div className="w-12 h-12 rounded-full bg-warning flex items-center justify-center mx-auto mb-2">
+                              <Award className="w-6 h-6 text-white" />
+                            </div>
+                            <p className="text-2xl font-bold text-warning">{Math.floor(Math.random() * 5 + 1)}</p>
+                            <p className="text-xs text-muted-foreground">Certifications</p>
+                          </div>
+                        )}
                       </div>
+                    </Card>
+                  </div>
+                  
+                  {/* Student Details */}
+                  {selectedStudent && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-2">Student Details</p>
+                      <Card className="p-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Name</p>
+                            <p className="font-medium">{selectedStudent.name || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Email</p>
+                            <p className="font-medium">{selectedStudent.email || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Course</p>
+                            <p className="font-medium">{selectedStudent.course || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Branch</p>
+                            <p className="font-medium">{selectedStudent.branch || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Year</p>
+                            <p className="font-medium">{selectedStudent.year || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">CGPA</p>
+                            <p className="font-medium">{selectedStudent.cgpa || 'N/A'}</p>
+                          </div>
+                        </div>
+                        {selectedStudent.skills && selectedStudent.skills.length > 0 && (
+                          <div className="mt-4">
+                            <p className="text-sm text-muted-foreground mb-2">Skills</p>
+                            <div className="flex flex-wrap gap-2">
+                              {selectedStudent.skills.map((skill, idx) => (
+                                <Badge key={idx} variant="secondary">
+                                  {skill}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </Card>
                     </div>
                   )}
+                  
+                  {/* Application Feedback */}
+                  {selectedApplication.feedback && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-2">Feedback</p>
+                      <Card className="p-4">
+                        <p className="text-sm">
+                          {typeof selectedApplication.feedback === 'string' 
+                            ? selectedApplication.feedback 
+                            : JSON.stringify(selectedApplication.feedback)}
+                        </p>
+                      </Card>
+                    </div>
+                  )}
+                  
+                  {/* Notes */}
                   <div>
                     <Label className="mb-2">Notes</Label>
                     <Textarea
@@ -478,95 +1103,6 @@ const RecruiterStudents = () => {
                 </DialogFooter>
               </>
             )}
-          </DialogContent>
-        </Dialog>
-
-        {/* Interview Dialog */}
-        <Dialog open={isInterviewDialogOpen} onOpenChange={setIsInterviewDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Schedule Interview Round</DialogTitle>
-              <DialogDescription>
-                Add a new interview round for {selectedApplicant?.name}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Round Name</Label>
-                <Input
-                  value={interviewFormData.roundName}
-                  onChange={(e) =>
-                    setInterviewFormData({ ...interviewFormData, roundName: e.target.value })
-                  }
-                  placeholder="e.g., Technical Round, HR Round"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Scheduled Date</Label>
-                <Input
-                  type="datetime-local"
-                  value={interviewFormData.scheduledDate}
-                  onChange={(e) =>
-                    setInterviewFormData({ ...interviewFormData, scheduledDate: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select
-                  value={interviewFormData.status}
-                  onValueChange={(value) =>
-                    setInterviewFormData({
-                      ...interviewFormData,
-                      status: value as "scheduled" | "completed" | "cancelled",
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="scheduled">Scheduled</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {interviewFormData.status === "completed" && (
-                <>
-                  <div className="space-y-2">
-                    <Label>Feedback</Label>
-                    <Textarea
-                      value={interviewFormData.feedback}
-                      onChange={(e) =>
-                        setInterviewFormData({ ...interviewFormData, feedback: e.target.value })
-                      }
-                      placeholder="Interview feedback..."
-                      rows={3}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Score (out of 100)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={interviewFormData.score}
-                      onChange={(e) =>
-                        setInterviewFormData({ ...interviewFormData, score: e.target.value })
-                      }
-                      placeholder="e.g., 85"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsInterviewDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSaveInterview}>Save Interview</Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

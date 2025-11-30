@@ -87,46 +87,8 @@ export const getDefaultProfile = (): StudentProfile => ({
 export const getStudentApplications = (): StudentApplication[] => {
   const stored = localStorage.getItem(STORAGE_KEYS.APPLICATIONS);
   if (!stored) {
-    // Initialize with mock data if no stored data
-    const mockApps: StudentApplication[] = [
-      {
-        id: 1,
-        driveId: 1,
-        company: "Stealth AI",
-        position: "AI Analyst",
-        status: "under-review",
-        appliedDate: "2024-01-15",
-        lastUpdate: "2024-01-20",
-        salary: "$400 - $1000",
-        location: "Pune, India",
-        logo: "https://api.dicebear.com/7.x/shapes/svg?seed=stealthai",
-      },
-      {
-        id: 2,
-        driveId: 2,
-        company: "Highspeed Studios",
-        position: "Junior Software Engineer",
-        status: "shortlisted",
-        appliedDate: "2024-01-10",
-        lastUpdate: "2024-01-22",
-        interviewDate: "2024-01-28",
-        salary: "$500 - $1000",
-        location: "Bangalore, India",
-        logo: "https://api.dicebear.com/7.x/shapes/svg?seed=highspeed",
-      },
-      {
-        id: 3,
-        driveId: 3,
-        company: "Lunch Data Corp",
-        position: "Database Engineer",
-        status: "rejected",
-        appliedDate: "2024-01-05",
-        lastUpdate: "2024-01-18",
-        salary: "$400 - $1000",
-        location: "Delhi, India",
-        logo: "https://api.dicebear.com/7.x/shapes/svg?seed=lunchdata",
-      },
-    ];
+    // Initialize with empty array since mock data is removed
+    const mockApps: StudentApplication[] = [];
     saveStudentApplications(mockApps);
     return mockApps;
   }

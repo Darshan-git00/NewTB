@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
@@ -30,6 +30,7 @@ const StudentLayout = ({ children }: StudentLayoutProps) => {
     { path: "/student/dashboard", label: "Dashboard", icon: GraduationCap },
     { path: "/student/drives", label: "Drives", icon: Briefcase },
     { path: "/student/applications", label: "My Applications", icon: FileText },
+    { path: "/student/profile", label: "Profile", icon: User },
     { path: "/student/ai-interview", label: "AI Interview", icon: Brain },
   ];
 
@@ -114,4 +115,4 @@ const StudentLayout = ({ children }: StudentLayoutProps) => {
   );
 };
 
-export default StudentLayout;
+export default memo(StudentLayout);

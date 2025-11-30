@@ -2,15 +2,45 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Brain, Award, Code, TrendingUp } from "lucide-react";
-import { mockStudents } from "@/data/mockData";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { collegesService } from "@/services/collegesService";
 
 export const StudentIntelligencePanel = () => {
+  const { user } = useAuth();
+  const [students, setStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStudents = async () => {
+      if (!user?.id) return;
+      
+      try {
+        setLoading(true);
+        const response = await collegesService.getStudents(user.id, {
+          page: 1,
+          limit: 50
+        });
+        
+        if (response.status === 'success' && response.data) {
+          setStudents(response.data.data || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch students:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStudents();
+  }, [user?.id]);
+
   // Sort by custom rank (skills + certifications + AI interview)
-  const rankedStudents = [...mockStudents]
-    .filter(s => s.status === "available" || s.status === "on-hold")
+  const rankedStudents = [...students]
+    .filter(s => (s as any).status === "available" || (s as any).status === "on-hold")
     .sort((a, b) => {
-      const scoreA = (a.aiInterviewScore || 0) + (a.skillMatchPercentage || 0) + ((a.certifications?.length || 0) * 10);
-      const scoreB = (b.aiInterviewScore || 0) + (b.skillMatchPercentage || 0) + ((b.certifications?.length || 0) * 10);
+      const scoreA = ((a as any).aiInterviewScore || 0) + ((a as any).skillMatchPercentage || 0) + (((a as any).certifications?.length || 0) * 10);
+      const scoreB = ((b as any).aiInterviewScore || 0) + ((b as any).skillMatchPercentage || 0) + (((b as any).certifications?.length || 0) * 10);
       return scoreB - scoreA;
     })
     .slice(0, 5);
@@ -28,7 +58,17 @@ export const StudentIntelligencePanel = () => {
       </div>
 
       <div className="space-y-4">
-        {rankedStudents.map((student, idx) => (
+        {loading ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+            <p className="text-muted-foreground text-sm">Loading top performers...</p>
+          </div>
+        ) : rankedStudents.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground text-sm">No students available</p>
+          </div>
+        ) : (
+          rankedStudents.map((student, idx) => (
           <div
             key={student.id}
             className="p-4 rounded-xl bg-card/60 dark:bg-card/80 backdrop-blur border border-border/50 hover:shadow-lg transition-all"
@@ -39,11 +79,11 @@ export const StudentIntelligencePanel = () => {
                   <span className="text-lg font-bold text-primary">#{idx + 1}</span>
                   <h4 className="font-semibold text-base">{student.name}</h4>
                   <Badge variant="secondary" className="text-xs">
-                    {student.branch}
+                    {(student as any).branch}
                   </Badge>
                 </div>
                 <div className="flex flex-wrap gap-2 mb-2">
-                  {student.skills?.slice(0, 4).map((skill, i) => (
+                  {(student as any).skills?.slice(0, 4).map((skill: string, i: number) => (
                     <Badge key={i} variant="outline" className="text-xs">
                       {skill}
                     </Badge>
@@ -59,8 +99,8 @@ export const StudentIntelligencePanel = () => {
                   AI Score
                 </div>
                 <div className="flex items-center gap-2">
-                  <Progress value={student.aiInterviewScore || 0} className="h-2 flex-1" />
-                  <span className="text-sm font-bold text-primary">{student.aiInterviewScore || 0}%</span>
+                  <Progress value={(student as any).aiInterviewScore || 0} className="h-2 flex-1" />
+                  <span className="text-sm font-bold text-primary">{(student as any).aiInterviewScore || 0}%</span>
                 </div>
               </div>
 
@@ -70,8 +110,8 @@ export const StudentIntelligencePanel = () => {
                   Skill Match
                 </div>
                 <div className="flex items-center gap-2">
-                  <Progress value={student.skillMatchPercentage || 0} className="h-2 flex-1" />
-                  <span className="text-sm font-bold text-secondary">{student.skillMatchPercentage || 0}%</span>
+                  <Progress value={(student as any).skillMatchPercentage || 0} className="h-2 flex-1" />
+                  <span className="text-sm font-bold text-secondary">{(student as any).skillMatchPercentage || 0}%</span>
                 </div>
               </div>
 
@@ -80,11 +120,12 @@ export const StudentIntelligencePanel = () => {
                   <Award className="w-3 h-3" />
                   Certifications
                 </div>
-                <span className="text-sm font-bold">{student.certifications?.length || 0}</span>
+                <span className="text-sm font-bold">{((student as any).certifications?.length || 0)}</span>
               </div>
             </div>
           </div>
-        ))}
+          ))
+        )}
       </div>
     </Card>
   );

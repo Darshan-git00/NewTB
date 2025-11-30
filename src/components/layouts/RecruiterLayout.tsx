@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
@@ -23,7 +23,16 @@ interface RecruiterLayoutProps {
 
 const RecruiterLayout = ({ children }: RecruiterLayoutProps) => {
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   const navItems = [
     { path: "/recruiter/dashboard", label: "Dashboard", icon: Building2 },
@@ -81,7 +90,9 @@ const RecruiterLayout = ({ children }: RecruiterLayoutProps) => {
               </Button>
               <Link to="/recruiter/profile">
                 <Avatar className="cursor-pointer ring-2 ring-primary/30 hover:ring-primary/70 transition-all duration-200">
-                  <AvatarFallback className="bg-gradient-to-br from-primary via-secondary to-muted text-white text-lg font-medium">TR</AvatarFallback>
+                  <AvatarFallback className="bg-gradient-to-br from-primary via-secondary to-muted text-white text-lg font-medium">
+                    {user?.name ? getInitials(user.name) : 'TR'}
+                  </AvatarFallback>
                 </Avatar>
               </Link>
             </div>
@@ -112,4 +123,4 @@ const RecruiterLayout = ({ children }: RecruiterLayoutProps) => {
   );
 };
 
-export default RecruiterLayout;
+export default memo(RecruiterLayout);

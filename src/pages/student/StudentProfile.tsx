@@ -10,42 +10,106 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Mail, Phone, Edit, X, Plus, Brain, CheckCircle, AlertCircle, Clock } from "lucide-react";
 import { Link } from "react-router-dom";
-import { getStudentProfile, saveStudentProfile, getDefaultProfile, type StudentProfile } from "@/lib/studentStorage";
 import { ResumeUpload } from "@/components/ResumeUpload";
 import { ParsedResume } from "@/lib/resumeParser";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { useStudentProfile, useUpdateStudentProfile } from "@/hooks/useStudents";
+import { Student } from "@/services/types";
 
 const StudentProfile = () => {
   const location = useLocation();
   const isEditMode = location.pathname.includes("/edit");
+  const { user } = useAuth();
   
-  const [profile, setProfile] = useState<StudentProfile>(getDefaultProfile());
+  // Real API hooks
+  const { data: studentProfile, isLoading, error } = useStudentProfile(user?.id);
+  const updateProfileMutation = useUpdateStudentProfile();
+  
   const [isEditing, setIsEditing] = useState(isEditMode);
-  const [editedProfile, setEditedProfile] = useState<StudentProfile>(getDefaultProfile());
+  const [editedProfile, setEditedProfile] = useState<Partial<Student>>({});
   const [newSkill, setNewSkill] = useState("");
   const [newCertification, setNewCertification] = useState({ name: "", issuer: "", year: "" });
   const [showResumeUpload, setShowResumeUpload] = useState(false);
 
+  // Update edit mode when route changes
   useEffect(() => {
-    const savedProfile = getStudentProfile();
-    if (savedProfile) {
-      setProfile(savedProfile);
-      setEditedProfile(savedProfile);
-    }
-  }, []);
+    setIsEditing(isEditMode);
+  }, [isEditMode]);
 
-  const handleSave = () => {
-    saveStudentProfile(editedProfile);
-    setProfile(editedProfile);
-    setIsEditing(false);
-    toast.success("Profile updated successfully!");
-    if (isEditMode) {
-      window.history.pushState({}, "", "/student/profile");
+  // Initialize edited profile when data loads
+  useEffect(() => {
+    if (studentProfile) {
+      // Convert backend data to frontend format
+      const frontendProfile = {
+        ...studentProfile,
+        skills: studentProfile.skills ? (tryParseJSON(studentProfile.skills as unknown as string) || []) : [],
+        certifications: studentProfile.certifications ? (tryParseJSON(studentProfile.certifications as unknown as string) || []) : [],
+      };
+      setEditedProfile(frontendProfile);
+    }
+  }, [studentProfile]);
+
+  // Helper function to safely parse JSON
+  const tryParseJSON = (jsonString: string) => {
+    try {
+      return JSON.parse(jsonString);
+    } catch {
+      return null;
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user?.id) return;
+    
+    try {
+      // Filter only allowed fields that exist in the backend schema
+      const allowedFields = [
+        'name', 'email', 'course', 'branch', 'year', 'cgpa',
+        'skills', 'certifications', 'resume', 'portfolio', 'linkedinProfile', 'githubProfile'
+      ];
+      
+      const filteredData: any = {};
+      allowedFields.forEach(field => {
+        if (editedProfile[field] !== undefined) {
+          filteredData[field] = editedProfile[field];
+        }
+      });
+      
+      // Convert frontend data structure to backend format
+      const backendData = {
+        ...filteredData,
+        skills: editedProfile.skills ? JSON.stringify(editedProfile.skills) : undefined,
+        certifications: editedProfile.certifications ? JSON.stringify(editedProfile.certifications) : undefined,
+      };
+      
+      const response = await updateProfileMutation.mutateAsync({
+        data: backendData
+      });
+      
+      // Update local state with fresh data from backend (immediate update)
+      if (response.data) {
+        const frontendProfile = {
+          ...response.data,
+          skills: response.data.skills ? (tryParseJSON(response.data.skills as unknown as string) || []) : [],
+          certifications: response.data.certifications ? (tryParseJSON(response.data.certifications as unknown as string) || []) : [],
+        };
+        setEditedProfile(frontendProfile);
+      }
+      
+      setIsEditing(false);
+      toast.success("Profile updated successfully!");
+      if (isEditMode) {
+        window.history.pushState({}, "", "/student/profile");
+      }
+    } catch (error) {
+      console.error("Full profile update error:", error);
+      toast.error("Failed to update profile");
     }
   };
 
   const handleCancel = () => {
-    setEditedProfile(profile);
+    setEditedProfile(studentProfile || {});
     setIsEditing(false);
     if (isEditMode) {
       window.history.pushState({}, "", "/student/profile");
@@ -53,10 +117,10 @@ const StudentProfile = () => {
   };
 
   const addSkill = () => {
-    if (newSkill.trim() && !editedProfile.skills.includes(newSkill.trim())) {
+    if (newSkill.trim() && !editedProfile.skills?.includes(newSkill.trim())) {
       setEditedProfile({
         ...editedProfile,
-        skills: [...editedProfile.skills, newSkill.trim()],
+        skills: [...(editedProfile.skills || []), newSkill.trim()],
       });
       setNewSkill("");
     }
@@ -65,15 +129,22 @@ const StudentProfile = () => {
   const removeSkill = (skill: string) => {
     setEditedProfile({
       ...editedProfile,
-      skills: editedProfile.skills.filter((s) => s !== skill),
+      skills: editedProfile.skills?.filter((s) => s !== skill) || [],
     });
   };
 
   const addCertification = () => {
     if (newCertification.name.trim() && newCertification.issuer.trim() && newCertification.year.trim()) {
+      const newCert = {
+        id: Date.now().toString(), // Temporary ID, backend will generate real one
+        name: newCertification.name.trim(),
+        issuer: newCertification.issuer.trim(),
+        year: newCertification.year.trim()
+      };
+      
       setEditedProfile({
         ...editedProfile,
-        certifications: [...editedProfile.certifications, { ...newCertification }],
+        certifications: [...(editedProfile.certifications || []), newCert],
       });
       setNewCertification({ name: "", issuer: "", year: "" });
     }
@@ -82,7 +153,7 @@ const StudentProfile = () => {
   const removeCertification = (index: number) => {
     setEditedProfile({
       ...editedProfile,
-      certifications: editedProfile.certifications.filter((_, i) => i !== index),
+      certifications: editedProfile.certifications?.filter((_, i) => i !== index) || [],
     });
   };
 
@@ -91,21 +162,21 @@ const StudentProfile = () => {
     const updatedProfile = { ...editedProfile };
     
     // Update personal info if empty
-    if (!updatedProfile.name || updatedProfile.name === getDefaultProfile().name) {
+    if (!updatedProfile.name) {
       updatedProfile.name = parsedResume.personalInfo.name;
     }
-    if (!updatedProfile.email || updatedProfile.email === getDefaultProfile().email) {
+    if (!updatedProfile.email) {
       updatedProfile.email = parsedResume.personalInfo.email;
     }
-    if (!updatedProfile.phone || updatedProfile.phone === getDefaultProfile().phone) {
+    if (!updatedProfile.phone) {
       updatedProfile.phone = parsedResume.personalInfo.phone;
     }
     
     // Add technical skills
-    const existingSkills = new Set(updatedProfile.skills);
+    const existingSkills = new Set(updatedProfile.skills || []);
     parsedResume.skills.technical.forEach(skill => {
       if (!existingSkills.has(skill)) {
-        updatedProfile.skills.push(skill);
+        updatedProfile.skills = [...(updatedProfile.skills || []), skill];
         existingSkills.add(skill);
       }
     });
@@ -114,18 +185,56 @@ const StudentProfile = () => {
     parsedResume.certifications.forEach(cert => {
       const yearMatch = cert.date.match(/\d{4}/);
       const year = yearMatch ? yearMatch[0] : new Date().getFullYear().toString();
-      updatedProfile.certifications.push({
+      updatedProfile.certifications = [...(updatedProfile.certifications || []), {
+        id: Date.now().toString() + Math.random(), // Temporary unique ID
         name: cert.name,
         issuer: cert.issuer,
         year
-      });
+      }];
     });
     
     setEditedProfile(updatedProfile);
     toast.success("Profile updated with resume data!");
   };
 
-  const displayProfile = isEditing ? editedProfile : profile;
+  // Loading state
+  if (isLoading) {
+    return (
+      <StudentLayout>
+        <div className="container mx-auto px-8 py-12 max-w-4xl">
+          <Card className="p-8 rounded-2xl shadow-xl">
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+              <p className="mt-4 text-muted-foreground">Loading profile...</p>
+            </div>
+          </Card>
+        </div>
+      </StudentLayout>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <StudentLayout>
+        <div className="container mx-auto px-8 py-12 max-w-4xl">
+          <Card className="p-8 rounded-2xl shadow-xl">
+            <div className="text-center py-12">
+              <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+              <h3 className="text-lg font-semibold">Failed to load profile</h3>
+              <p className="text-muted-foreground mt-2">Please try refreshing the page</p>
+            </div>
+          </Card>
+        </div>
+      </StudentLayout>
+    );
+  }
+
+  const displayProfile = isEditing ? editedProfile : (studentProfile ? {
+  ...studentProfile,
+  skills: studentProfile.skills ? (tryParseJSON(studentProfile.skills as unknown as string) || []) : [],
+  certifications: studentProfile.certifications ? (tryParseJSON(studentProfile.certifications as unknown as string) || []) : [],
+} : editedProfile); // Fallback to editedProfile if studentProfile is undefined
 
   return (
     <StudentLayout>
@@ -135,7 +244,7 @@ const StudentProfile = () => {
             <div className="flex items-center gap-6">
               <Avatar className="w-28 h-28 ring-4 ring-primary/20">
                 <AvatarFallback className="bg-gradient-to-br from-primary via-secondary to-muted text-white text-3xl font-bold">
-                  {displayProfile.name.split(" ").map(n => n[0]).join("")}
+                  {displayProfile.name?.split(" ").map(n => n[0]).join("") || "S"}
                 </AvatarFallback>
               </Avatar>
               <div>
@@ -145,7 +254,7 @@ const StudentProfile = () => {
                       <Label htmlFor="name">Full Name</Label>
                       <Input
                         id="name"
-                        value={editedProfile.name}
+                        value={editedProfile.name || ''}
                         onChange={(e) => setEditedProfile({ ...editedProfile, name: e.target.value })}
                         className="max-w-md"
                       />
@@ -155,7 +264,7 @@ const StudentProfile = () => {
                       <Input
                         id="email"
                         type="email"
-                        value={editedProfile.email}
+                        value={editedProfile.email || ''}
                         onChange={(e) => setEditedProfile({ ...editedProfile, email: e.target.value })}
                         className="max-w-md"
                       />
@@ -165,7 +274,7 @@ const StudentProfile = () => {
                       <Input
                         id="phone"
                         type="tel"
-                        value={editedProfile.phone}
+                        value={editedProfile.phone || ''}
                         onChange={(e) => setEditedProfile({ ...editedProfile, phone: e.target.value })}
                         className="max-w-md"
                       />
@@ -218,7 +327,7 @@ const StudentProfile = () => {
                   <p className="text-sm text-muted-foreground mb-2 font-medium">Course</p>
                   {isEditing ? (
                     <Input
-                      value={editedProfile.course}
+                      value={editedProfile.course || ''}
                       onChange={(e) => setEditedProfile({ ...editedProfile, course: e.target.value })}
                     />
                   ) : (
@@ -244,7 +353,7 @@ const StudentProfile = () => {
                   <p className="text-sm text-muted-foreground mb-2 font-medium">Year</p>
                   {isEditing ? (
                     <Input
-                      value={editedProfile.year}
+                      value={editedProfile.year || ''}
                       onChange={(e) => setEditedProfile({ ...editedProfile, year: e.target.value })}
                     />
                   ) : (
@@ -255,7 +364,7 @@ const StudentProfile = () => {
                   <p className="text-sm text-muted-foreground mb-2 font-medium">Branch</p>
                   {isEditing ? (
                     <Input
-                      value={editedProfile.branch}
+                      value={editedProfile.branch || ''}
                       onChange={(e) => setEditedProfile({ ...editedProfile, branch: e.target.value })}
                     />
                   ) : (
@@ -268,7 +377,7 @@ const StudentProfile = () => {
             <div>
               <h3 className="font-bold text-xl mb-4">Skills</h3>
               <div className="flex flex-wrap gap-2 mb-4">
-                {displayProfile.skills.map((skill, idx) => (
+                {(displayProfile.skills || []).map((skill, idx) => (
                   <Badge key={idx} variant="secondary" className="text-sm px-3 py-1 rounded-lg flex items-center gap-2">
                     {skill}
                     {isEditing && (
@@ -301,7 +410,7 @@ const StudentProfile = () => {
             <div>
               <h3 className="font-bold text-xl mb-4">Certifications</h3>
               <div className="space-y-3 mb-4">
-                {displayProfile.certifications.map((cert, idx) => (
+                {(displayProfile.certifications || []).map((cert, idx) => (
                   <div key={idx} className="p-5 rounded-xl border border-border/60 bg-gradient-to-r from-white to-muted/20 shadow-md flex items-center justify-between">
                     <div>
                       <h4 className="font-bold mb-1">{cert.name}</h4>
@@ -361,9 +470,9 @@ const StudentProfile = () => {
                 </Link>
               </div>
               
-              {displayProfile.aiInterviewResults && displayProfile.aiInterviewResults.length > 0 ? (
+              {(displayProfile as any).aiInterviewResults && (displayProfile as any).aiInterviewResults.length > 0 ? (
                 <div className="space-y-4">
-                  {displayProfile.aiInterviewResults.map((result, idx) => (
+                  {(displayProfile as any).aiInterviewResults.map((result, idx) => (
                     <Card key={idx} className="p-6 rounded-xl border border-border/60 bg-gradient-to-r from-primary/5 to-secondary/5 shadow-md">
                       <div className="flex items-start justify-between mb-4">
                         <div>

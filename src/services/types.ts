@@ -83,6 +83,7 @@ export interface StudentFilters {
 export interface Drive {
   id: string;
   title: string;
+  position: string; // Legacy property for compatibility
   description: string;
   company: string;
   companyId: string;
@@ -105,6 +106,9 @@ export interface Drive {
   updatedAt: string;
   applicantsCount: number;
   selectedCount: number;
+  openings: number; // Legacy property for compatibility
+  interviews: number; // Legacy property for compatibility
+  logo?: string; // Legacy property for compatibility
 }
 
 export interface Application {

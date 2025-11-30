@@ -31,9 +31,23 @@ export const useApplications = (params?: {
 }) => {
   return useQuery({
     queryKey: applicationKeys.list(params || {}),
-    queryFn: () => applicationsService.getApplications(params),
+    queryFn: () => {
+      // Ensure required params have defaults
+      const queryParams = {
+        page: params?.page || 1,
+        limit: params?.limit || 10,
+        ...params
+      };
+      return applicationsService.getApplications(queryParams);
+    },
     select: (response) => response.data,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 1 * 60 * 1000, // 1 minute - applications change more frequently
+    gcTime: 10 * 60 * 1000, // 10 minutes garbage collection
+    refetchOnWindowFocus: false, // Don't refetch on window focus
+    placeholderData: (previousData) => {
+      // Keep previous data while fetching new data
+      return previousData;
+    },
   });
 };
 
@@ -43,6 +57,9 @@ export const useApplicationById = (applicationId: string) => {
     queryFn: () => applicationsService.getApplicationById(applicationId),
     select: (response) => response.data,
     enabled: !!applicationId,
+    staleTime: 2 * 60 * 1000, // 2 minutes - individual applications
+    gcTime: 15 * 60 * 1000, // 15 minutes garbage collection
+    refetchOnWindowFocus: false,
   });
 };
 
@@ -51,7 +68,7 @@ export const useCreateApplication = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (applicationData: Omit<Application, 'id' | 'appliedAt' | 'updatedAt' | 'feedback'>) =>
+    mutationFn: (applicationData: Omit<Application, 'id' | 'createdAt' | 'updatedAt'>) =>
       applicationsService.createApplication(applicationData),
     onSuccess: () => {
       // Invalidate applications list
@@ -107,27 +124,27 @@ export const useUpdateApplicationStatus = () => {
 };
 
 // Application feedback hooks
-export const useAddApplicationFeedback = () => {
-  const queryClient = useQueryClient();
+// export const useAddApplicationFeedback = () => {
+//   const queryClient = useQueryClient();
   
-  return useMutation({
-    mutationFn: ({ 
-      applicationId, 
-      feedbackData 
-    }: { 
-      applicationId: string; 
-      feedbackData: Omit<ApplicationFeedback, 'id' | 'createdAt'> 
-    }) => applicationsService.addFeedback(applicationId, feedbackData),
-    onSuccess: (response, variables) => {
-      // Invalidate application feedback and application details
-      queryClient.invalidateQueries({ queryKey: applicationKeys.feedback(variables.applicationId) });
-      queryClient.invalidateQueries({ queryKey: applicationKeys.detail(variables.applicationId) });
-    },
-    onError: (error: any) => {
-      console.error('Failed to add feedback:', error);
-    },
-  });
-};
+//   return useMutation({
+//     mutationFn: ({ 
+//       applicationId, 
+//       feedbackData 
+//     }: { 
+//       applicationId: string; 
+//       feedbackData: Omit<ApplicationFeedback, 'id' | 'createdAt'> 
+//     }) => applicationsService.addFeedback(applicationId, feedbackData),
+//     onSuccess: (response, variables) => {
+//       // Invalidate application feedback and application details
+//       queryClient.invalidateQueries({ queryKey: applicationKeys.feedback(variables.applicationId) });
+//       queryClient.invalidateQueries({ queryKey: applicationKeys.detail(variables.applicationId) });
+//     },
+//     onError: (error: any) => {
+//       console.error('Failed to add application feedback:', error);
+//     },
+//   });
+// };
 
 export const useApplicationFeedback = (applicationId: string) => {
   return useQuery({
@@ -191,12 +208,14 @@ export const useUpdateInterviewStatus = () => {
   
   return useMutation({
     mutationFn: ({ 
+      applicationId,
       interviewId, 
       status 
     }: { 
+      applicationId: string;
       interviewId: string; 
       status: Interview['status'] 
-    }) => applicationsService.updateInterviewStatus(interviewId, status),
+    }) => applicationsService.updateInterviewStatus(applicationId, interviewId, status),
     onSuccess: (response, interviewId) => {
       // Invalidate interview queries
       queryClient.invalidateQueries({ queryKey: ['interview', interviewId] });
@@ -216,22 +235,21 @@ export const useApplyToDrive = () => {
   
   return useMutation({
     mutationFn: ({ 
-      studentId, 
       driveId, 
-      collegeId 
+      applicationData 
     }: { 
-      studentId: string; 
       driveId: string; 
-      collegeId: string;
-    }) => applicationsService.applyToDrive(studentId, driveId, collegeId),
+      applicationData?: {
+        resume?: string;
+        coverLetter?: string;
+      };
+    }) => applicationsService.applyToDrive(driveId, applicationData),
     onSuccess: (response, variables) => {
       console.log('useApplyToDrive - application created successfully:', response.data);
       
       // Invalidate related queries to trigger UI updates
       queryClient.invalidateQueries({ queryKey: applicationKeys.all });
-      queryClient.invalidateQueries({ queryKey: applicationKeys.student(variables.studentId) });
       queryClient.invalidateQueries({ queryKey: applicationKeys.drive(variables.driveId) });
-      queryClient.invalidateQueries({ queryKey: applicationKeys.college(variables.collegeId) });
       
       // Also invalidate drives queries to update applicant counts
       queryClient.invalidateQueries({ queryKey: ['drives'] });
@@ -247,8 +265,8 @@ export const useApplyToDrive = () => {
 export const useCollegeApplications = (collegeId: string) => {
   return useQuery({
     queryKey: applicationKeys.college(collegeId),
-    queryFn: () => applicationsService.getApplicationsByCollege(collegeId),
-    select: (response) => response.data,
+    queryFn: () => applicationsService.getApplications({ collegeId, page: 1, limit: 100 }),
+    select: (response) => response.data.data,
     enabled: !!collegeId,
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
@@ -263,11 +281,11 @@ export const useScheduleInterview = () => {
   return useMutation({
     mutationFn: ({ 
       applicationId, 
-      interviewDetails 
+      interviewData 
     }: { 
       applicationId: string; 
-      interviewDetails: InterviewDetails;
-    }) => applicationsService.scheduleInterview(applicationId, interviewDetails),
+      interviewData: Omit<Interview, 'id' | 'createdAt' | 'updatedAt'>;
+    }) => applicationsService.scheduleInterview(applicationId, interviewData),
     onSuccess: (response, variables) => {
       console.log('useScheduleInterview - interview scheduled successfully:', response.data);
       
@@ -281,9 +299,7 @@ export const useScheduleInterview = () => {
       if (response.data.driveId) {
         queryClient.invalidateQueries({ queryKey: applicationKeys.drive(response.data.driveId) });
       }
-      if (response.data.collegeId) {
-        queryClient.invalidateQueries({ queryKey: applicationKeys.college(response.data.collegeId) });
-      }
+      // Note: Interview doesn't have collegeId property, so we can't invalidate college queries
     },
     onError: (error: any) => {
       console.error('Failed to schedule interview:', error);

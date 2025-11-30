@@ -1,7 +1,5 @@
 // College data storage utilities using localStorage
 
-import { mockStudents } from "@/data/mockData";
-
 export interface CollegeApplication {
   id: number;
   studentId: number;
@@ -151,8 +149,15 @@ export const addCollegeApplication = (application: Omit<CollegeApplication, "id"
   const applications = getCollegeApplications();
   const nextId = getNextApplicationId();
   
-  // Get student data from mock data to enrich application
-  const student = mockStudents.find((s) => s.id === application.studentId);
+  // Since mock data is removed, use default values for student data
+  // In a real implementation, this would fetch from the API
+  const studentData = {
+    aiInterviewScore: 0,
+    skillMatchPercentage: 0,
+    customRank: 0,
+    projectExperience: 0,
+    certifications: [],
+  };
   
   // Normalize year format (remove "Year" suffix if present)
   const normalizedYear = application.year.replace(" Year", "").replace("Year", "").trim();
@@ -162,11 +167,11 @@ export const addCollegeApplication = (application: Omit<CollegeApplication, "id"
     id: nextId,
     appliedDate: new Date().toISOString().split("T")[0],
     year: normalizedYear,
-    aiInterviewScore: student?.aiInterviewScore,
-    skillMatchPercentage: student?.skillMatchPercentage,
-    customRank: student?.customRank,
-    projectExperience: student?.projectExperience,
-    certifications: student?.certifications || application.certifications || [],
+    aiInterviewScore: studentData.aiInterviewScore,
+    skillMatchPercentage: studentData.skillMatchPercentage,
+    customRank: studentData.customRank,
+    projectExperience: studentData.projectExperience,
+    certifications: studentData.certifications || application.certifications || [],
   };
   
   applications.push(newApplication);
